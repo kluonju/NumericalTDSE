@@ -316,7 +316,7 @@ int simulate_orbitals(const Parameters &p) {
                     break;
                 case Propagator::Split: {
                     auto Vext_n = project_V(MRA, p.prec, pot, t + p.dt);
-                    step_split(p.prec, *phi, ops, V, *Vext_n, p.dt, nullptr, nullptr);
+                    step_split(p.prec, *phi, ops, V, *Vext_n, p.dt);
                     break;
                 }
             }

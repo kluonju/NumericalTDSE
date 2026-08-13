@@ -19,6 +19,7 @@
 #include "MRCPP/MWOperators"
 
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -123,8 +124,10 @@ void apply_potential_exponential(double prec,
                                  double tau) {
     mrcpp::FunctionTree<D> cosV(V.getMRA());
     mrcpp::FunctionTree<D> sinV(V.getMRA());
-    mrcpp::treeMap(prec, cosV, V, [tau](double v) { return std::cos(v * tau); });
-    mrcpp::treeMap(prec, sinV, V, [tau](double v) { return std::sin(v * tau); });
+    mrcpp::FMap<double, double> cos_map = [tau](double v) { return std::cos(v * tau); };
+    mrcpp::FMap<double, double> sin_map = [tau](double v) { return std::sin(v * tau); };
+    mrcpp::treeMap(prec, cosV, V, cos_map);
+    mrcpp::treeMap(prec, sinV, V, sin_map);
 
     mrcpp::FunctionTree<D> c_re(V.getMRA());
     mrcpp::FunctionTree<D> s_im(V.getMRA());

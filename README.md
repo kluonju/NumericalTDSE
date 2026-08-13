@@ -40,8 +40,8 @@ i\,\partial_t\psi = \hat H(t)\,\psi,\qquad
 - 可选 OpenMP
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNUMTDSE_OPENMP=ON
-cmake --build build -j
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNUMTDSE_OPENMP=ON -DCMAKE_CXX_COMPILER=g++
+cmake --build build -j --target tdse
 ctest --test-dir build --output-on-failure
 ```
 
