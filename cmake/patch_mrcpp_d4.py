@@ -7,12 +7,14 @@ and is meant to run as a CMake PATCH_COMMAND / execute_process on the
 FetchContent source directory.
 
 Algorithmic changes:
-  * HilbertPath<4> is a header-only identity/Morton specialization (no 16-child
-    Hilbert tables are shipped).
-  * tree_utils::mw_transform gains a fourth filter pass.
-  * Quadrature / tensor coordinate expansion gain a 4D branch.
-  * Explicit instantiations of D = 3 templates are cloned to D = 4, skipping
-    D = 3-only specializations (mw_transform_back, CompFunction, Poisson, ...).
+    * HilbertPath<4> is a header-only identity/Morton specialization (no 16-child
+      Hilbert tables are shipped).
+    * tree_utils::mw_transform gains a fourth filter pass.
+    * Quadrature / tensor coordinate expansion gain a 4D branch.
+    * OperatorStatistics component counters grow from 8x8 (2^3) to 16x16 (2^4).
+    * NodeIndex::operator< compares all D translation indices (upstream stops at 3).
+    * Explicit instantiations of D = 3 templates are cloned to D = 4, skipping
+      D = 3-only specializations (mw_transform_back, CompFunction, Poisson, ...).
 """
 
 from __future__ import annotations
@@ -360,6 +362,46 @@ def patch_function_node(root: pathlib.Path) -> None:
     path.write_text(text)
 
 
+def patch_operator_statistics(root: pathlib.Path) -> None:
+    """D = 4 has 16 scaling/wavelet components; upstream counters are 8x8."""
+    for rel in (
+        "src/operators/OperatorStatistics.h",
+        "src/operators/OperatorStatistics.cpp",
+    ):
+        path = root / rel
+        text = path.read_text()
+        if "Matrix<int, 16, 16>" in text:
+            continue
+        if "Matrix<int, 8, 8>" not in text:
+            die(f"{path}: expected 8x8 component-count matrix")
+        path.write_text(text.replace("Matrix<int, 8, 8>", "Matrix<int, 16, 16>"))
+
+
+def patch_node_index(root: pathlib.Path) -> None:
+    path = root / "src/trees/NodeIndex.h"
+    text = path.read_text()
+    if "for (int d = 0; d < D; d++)" in text and "idx.L[d] != idy.L[d]" in text:
+        return
+    old = """    bool operator<(const NodeIndex<D> &idy) const {
+        const NodeIndex<D> &idx = *this;
+        if (idx.N != idy.N) return idx.N < idy.N;
+        if (idx.L[0] != idy.L[0] or D < 2) return idx.L[0] < idy.L[0];
+        if (idx.L[1] != idy.L[1] or D < 3) return idx.L[1] < idy.L[1];
+        return idx.L[2] < idy.L[2];
+    }
+"""
+    new = """    bool operator<(const NodeIndex<D> &idy) const {
+        const NodeIndex<D> &idx = *this;
+        if (idx.N != idy.N) return idx.N < idy.N;
+        for (int d = 0; d < D; d++) {
+            if (idx.L[d] != idy.L[d]) return idx.L[d] < idy.L[d];
+        }
+        return false;
+    }
+"""
+    path.write_text(replace_once(text, old, new, path))
+
+
 def walk_and_instantiate(root: pathlib.Path) -> int:
     src = root / "src"
     n_files = 0
@@ -388,6 +430,8 @@ def main() -> int:
     patch_mw_transform(root)
     patch_mwnode(root)
     patch_function_node(root)
+    patch_operator_statistics(root)
+    patch_node_index(root)
     n = walk_and_instantiate(root)
     stamp = root / ".numtdse_mrcpp_d4"
     stamp.write_text(MARKER + "\n")
