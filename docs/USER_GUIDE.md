@@ -77,6 +77,60 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 
 Lowest four levels (`E_n = n + 1/2`): `./build/bin/tdse examples/eigen_1d.in`.
 
+### Three electrons in a 1D harmonic oscillator
+
+There are two representations. Start with **orbitals** unless you need a correlated \(N\)-body wave function.
+
+**1. Orbital mode (recommended).** Three 1D orbitals, each a `FunctionTree<1>`. With `lambda = 0` the Hamiltonian is three independent oscillators, so the lowest states are \(\varepsilon_n=\omega(n+1/2)\). Three fermions fill \(n=0,1,2\) and the total energy is \(4.5\,\omega\).
+
+```bash
+./build/bin/tdse examples/orbitals_3e_ground.in
+python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-energy 1e-4 --tol-overlap 0.999
+```
+
+```fortran
+&CONTROL
+  calculation = 'ground'
+  prefix      = 'orbitals_3e_ground'
+/
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0          ! 0.5 → contact Hartree λρ
+/
+&TIME
+  kinetic = 'bs'           ! smooth bound-state energies
+/
+&EIGEN
+  n_states = 3             ! default is `electrons` in orbital mode
+  method   = 'lanczos'
+/
+```
+
+Real-time: `examples/orbitals_3e.in`. MPI can split the three orbitals: `mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in`.
+
+**2. Exact \(N\)-body.** One `FunctionTree<3>` for \(\psi(x_1,x_2,x_3)\). This is a 3D adaptive tree — keep `prec` coarse and \(T\) short. `fermion = .true.` loads a Slater determinant of HO orbitals \(n=0,1,2\). Exact mode includes soft-Coulomb \(V_{ee}\) unless you turn it off:
+
+```bash
+./build/bin/tdse examples/ho_3e_exact.in
+```
+
+```fortran
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'exact'
+  trap      = 'harmonic'
+  fermion   = .true.
+  ee        = .false.      ! .true. → 1/sqrt((x_i-x_j)²+a²)
+/
+```
+
+With `ee = .false.` the Slater is the non-interacting fermionic ground state and \(E=4.5\) is conserved. Ground-state search on this tree is the same namelist with `calculation = 'ground'` (much heavier than the orbital job).
+
 This is a **coherent state** of the 1D harmonic oscillator (`α = ω = 1`, `x0 = 1`):
 
 - dipole \(\mu(t) = \cos(t)\)
@@ -95,10 +149,10 @@ Potential pieces (see `include/tdse/analytic.hpp`):
 - **Free** \(V=0\)
 - **Soft atom** \(-Z/\sqrt{r^2+a^2}\)
 - **Laser** \(-E(t)\,x\) (dipole), \(E(t)=E_0 \sin(\omega_L t)\) times an optional \(\sin^2(\pi t/T)\) envelope
-- **Exact N-body 1D** extra electron–electron \(1/\sqrt{(x_i-x_j)^2+a^2}\)
+- **Exact N-body 1D** extra electron–electron \(1/\sqrt{(x_i-x_j)^2+a^2}\) (off with `ee = .false.`)
 - **Orbital mode** optional contact Hartree \(\lambda\rho(\mathbf r)\)
 
-Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced by `x0` along \(x\), with optional boost \(\mathrm{e}^{i k_0 x}\). For two 1D electrons and `fermion = .true.`, the initial data are antisymmetrised.
+Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced by `x0` along \(x\), with optional boost \(\mathrm{e}^{i k_0 x}\). For exact 1D `fermion = .true.`: two electrons → antisymmetrised pair of Gaussians; three electrons in a harmonic trap → Slater determinant of HO orbitals \(n=0,1,2\).
 
 ---
 
@@ -157,7 +211,8 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 | `soft_a` | 1 | soft-Coulomb length |
 | `Z` | 1 | nuclear charge |
 | `lambda` | 0 | orbital contact \(\lambda\) |
-| `fermion` | `.false.` | antisymmetrise exact 2e–1D initial data |
+| `fermion` | `.false.` | exact 1D: Slater initial data for 2e or 3e |
+| `ee` | `.true.` | exact 1D N-body: include soft-Coulomb \(V_{ee}\) |
 
 ### `&INITIAL`
 
@@ -356,6 +411,9 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `helium_1d.in` | exact 1D 2e | none — check \(\\|\psi\\|\) |
 | `orbitals_2e.in` | 2 orbitals + \(\lambda\rho\) | none; MPI-friendly |
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | none; up to 4 MPI ranks |
+| `orbitals_3e_ground.in` | 3 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
+| `orbitals_3e.in` | 3-orbital HO TDSE | none; MPI-friendly |
+| `ho_3e_exact.in` | exact 1D 3e HO Slater | \(E=4.5\) if `ee=.false.` |
 | `orbitals_smoke.in` | MPI ctest | tiny orbital RK4 |
 | `ground_smoke.in` | Lanczos HO ground (ctest) | \(E=0.5\) |
 | `ground_1d.in` | HO ground, Lanczos + BS | \(E=0.5\), \(\psi_0\), \(\mu=0\) |

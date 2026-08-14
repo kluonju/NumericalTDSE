@@ -147,6 +147,12 @@ void print_parameters(const Parameters &p) {
     println(0, "  kinetic         : " << kinetic_name(p.kinetic));
     println(0, "  representation  : " << representation_name(p.representation));
     println(0, "  trap            : " << trap_name(p.trap));
+    if (p.n_electrons > 1) {
+        println(0, "  fermion         : " << (p.fermion ? "true" : "false"));
+        if (p.representation == Representation::Exact) {
+            println(0, "  ee              : " << (p.ee ? "true" : "false"));
+        }
+    }
     if (is_stationary(p)) {
         println(0, "  eigen_method    : " << eigen_method_name(p.eigen_method));
         mrcpp::print::value(0, "n_states", static_cast<double>(p.n_states));

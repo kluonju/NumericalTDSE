@@ -1,0 +1,40 @@
+! Three non-interacting 1D HO orbitals (λ = 0).
+! Analytic orbital energies: ε_n = ω (n + 1/2) = 0.5, 1.5, 2.5  (ω = 1).
+! Fermions in 1D fill n = 0,1,2; total E = 4.5.
+! 三个无相互作用一维谐振子轨道。
+&CONTROL
+  calculation = 'ground'
+  title       = 'three 1D HO orbitals (λ = 0)'
+  prefix      = 'orbitals_3e_ground'
+  ident_check = .false.
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0
+/
+
+&MRA
+  prec  = 1.0d-4
+  order = 7
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 16
+  kinetic    = 'bs'
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.7
+/
+
+&EIGEN
+  n_states = 3
+  method   = 'lanczos'
+/

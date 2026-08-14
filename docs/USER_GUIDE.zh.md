@@ -77,6 +77,60 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 
 最低四态（\(E_n = n + 1/2\)）：`./build/bin/tdse examples/eigen_1d.in`。
 
+### 一维谐振子里的三个电子
+
+两种表示。一般先用**轨道模式**；只有需要关联 \(N\) 体波函数时才上精确树。
+
+**1. 轨道模式（推荐）。** 三个一维轨道，每个是 `FunctionTree<1>`。`lambda = 0` 时是三个独立振子，最低轨道能 \(\varepsilon_n=\omega(n+1/2)\)。三个费米子占据 \(n=0,1,2\)，总能量 \(4.5\,\omega\)。
+
+```bash
+./build/bin/tdse examples/orbitals_3e_ground.in
+python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-energy 1e-4 --tol-overlap 0.999
+```
+
+```fortran
+&CONTROL
+  calculation = 'ground'
+  prefix      = 'orbitals_3e_ground'
+/
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0          ! 0.5 → 接触 Hartree λρ
+/
+&TIME
+  kinetic = 'bs'
+/
+&EIGEN
+  n_states = 3
+  method   = 'lanczos'
+/
+```
+
+实时：`examples/orbitals_3e.in`。MPI 可按轨道分：`mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in`。
+
+**2. 精确 \(N\) 体。** 一张 `FunctionTree<3>` 表示 \(\psi(x_1,x_2,x_3)\)，是三维自适应树，`prec` 要粗、\(T\) 要短。`fermion = .true.` 用 HO 轨道 \(n=0,1,2\) 的 Slater 行列式。精确模式默认带软库仑 \(V_{ee}\)，可关掉：
+
+```bash
+./build/bin/tdse examples/ho_3e_exact.in
+```
+
+```fortran
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'exact'
+  trap      = 'harmonic'
+  fermion   = .true.
+  ee        = .false.      ! .true. → 1/sqrt((x_i-x_j)²+a²)
+/
+```
+
+`ee = .false.` 时该 Slater 就是无相互作用费米基态，\(E=4.5\) 守恒。要求基态把 `calculation = 'ground'` 即可（比轨道模式重得多）。
+
 这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
 
 - 偶极 \(\mu(t) = \cos(t)\)
@@ -95,10 +149,10 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 - **自由** \(V=0\)
 - **软原子** \(-Z/\sqrt{r^2+a^2}\)
 - **激光** \(-E(t)\,x\)（偶极），\(E(t)=E_0 \sin(\omega_L t)\)，可选包络 \(\sin^2(\pi t/T)\)
-- **精确一维 N 体** 额外电子–电子 \(1/\sqrt{(x_i-x_j)^2+a^2}\)
+- **精确一维 N 体** 额外电子–电子 \(1/\sqrt{(x_i-x_j)^2+a^2}\)（`ee = .false.` 可关）
 - **轨道模式** 可选接触 Hartree \(\lambda\rho(\mathbf r)\)
 
-初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。一维双电子且 `fermion = .true.` 时初态反对称化。
+初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。精确一维 `fermion = .true.`：两电子 → 反对称双高斯；三电子谐振子 → HO 轨道 \(n=0,1,2\) 的 Slater 行列式。
 
 ---
 
@@ -157,7 +211,8 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 | `soft_a` | 1 | 软库仑长度 |
 | `Z` | 1 | 核电荷 |
 | `lambda` | 0 | 轨道接触 \(\lambda\) |
-| `fermion` | `.false.` | 精确 2e–1D 初态反对称化 |
+| `fermion` | `.false.` | 精确一维 2e/3e Slater 初态 |
+| `ee` | `.true.` | 精确一维 N 体是否含软库仑 \(V_{ee}\) |
 
 ### `&INITIAL`
 
@@ -356,6 +411,9 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `helium_1d.in` | 精确 1D 双电子 | 无 — 看 \(\\|\psi\\|\) |
 | `orbitals_2e.in` | 两轨道 + \(\lambda\rho\) | 无；适合 MPI |
 | `orbitals_4e.in` | 四轨道 + \(\lambda\rho\) | 无；最多 4 个 MPI rank |
+| `orbitals_3e_ground.in` | 三谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
+| `orbitals_3e.in` | 三轨道实时 | 无；适合 MPI |
+| `ho_3e_exact.in` | 精确一维三电子 Slater | `ee=.false.` 时 \(E=4.5\) |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
 | `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
 | `ground_1d.in` | 谐振子基态，Lanczos + BS | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |

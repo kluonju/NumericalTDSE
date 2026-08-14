@@ -73,7 +73,8 @@ struct Parameters {
     double soft_a = 1.0;    ///< Soft-Coulomb regularisation length
     double Z = 1.0;         ///< Nuclear charge for TrapKind::SoftAtom
     double lambda_contact = 0.0; ///< Orbital-mode contact interaction λ ρ(r)
-    bool fermion = false;   ///< Antisymmetrise exact two-electron 1D initial data
+    bool fermion = false;   ///< Antisymmetrise exact 2e/3e 1D initial data (Slater)
+    bool ee = true;         ///< Exact N-body 1D: include soft-Coulomb V_ee
 
     // --- Initial wave function (displaced Gaussian, optional boost) ---
     double alpha = 1.0;     ///< Gaussian width parameter, ψ ~ exp(-α r² / 2)

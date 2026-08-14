@@ -1,0 +1,39 @@
+! Three 1D orbitals in a harmonic trap, optional contact Hartree λρ.
+! Start from orbitals_3e_ground.in (λ = 0) if you want the spectrum first.
+! MPI: mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in
+! 三个一维谐振子轨道的实时传播。
+&CONTROL
+  title       = 'three-electron orbital TDSE in 1D HO'
+  prefix      = 'orbitals_3e'
+  ident_check = .false.
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0                 ! set e.g. 0.5 for contact mean field
+/
+
+&MRA
+  prec  = 1.0d-4
+  order = 7
+  L     = 8.0
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.20
+  propagator = 'rk4'
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 1.0                     ! orbitals placed at −x0, 0, +x0
+/
+
+&PARALLEL
+  nthreads = 0
+/
