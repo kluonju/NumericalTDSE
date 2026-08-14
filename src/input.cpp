@@ -452,6 +452,8 @@ void apply_namelist_assignment(Parameters &p,
             p.lambda_contact = parse_double(value, origin);
         } else if (key == "fermion") {
             p.fermion = parse_bool(value, origin);
+        } else if (key == "ee" || key == "interact" || key == "interaction" || key == "vee") {
+            p.ee = parse_bool(value, origin);
         } else {
             unknown();
         }
@@ -670,7 +672,8 @@ void write_input_template(std::ostream &os) {
   soft_a    = 1.0
   Z         = 1.0
   lambda    = 0.0                 ! orbital-mode contact interaction
-  fermion   = .false.             ! antisymmetrise exact 2e-1D initial data
+  fermion   = .false.             ! Slater initial data for exact 2e/3e in 1D
+  ee        = .true.              ! exact N-body 1D soft-Coulomb V_ee
 /
 
 &INITIAL

@@ -66,6 +66,12 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 也可以一步完成：`./examples/run_and_plot.sh examples/harmonic_1d.in`。
 
+这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
+
+- 偶极 \(\mu(t) = \cos(t)\)
+- 能量 \(E = 1\)（理论 \(\omega/2 + \tfrac12 \omega^2 x_0^2\)）
+- 重叠 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 会打印并写入 CSV
+
 同一谐振子的基态（\(E_0 = 1/2\)）：
 
 ```bash
@@ -77,11 +83,69 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 
 最低四态（\(E_n = n + 1/2\)）：`./build/bin/tdse examples/eigen_1d.in`。
 
-这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
+### 一维谐振子里的三个电子
 
-- 偶极 \(\mu(t) = \cos(t)\)
-- 能量 \(E = 1\)（理论 \(\omega/2 + \tfrac12 \omega^2 x_0^2\)）
-- 重叠 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 会打印并写入 CSV
+两种表示。一般先用**轨道模式**；只有需要关联 \(N\) 体波函数时才上精确树。
+
+**1. 轨道模式（推荐）。** 三个一维轨道，每个是 `FunctionTree<1>`。`lambda = 0` 时是三个独立振子，最低轨道能 \(\varepsilon_n=\omega(n+1/2)\)。三个费米子占据 \(n=0,1,2\)，总能量 \(4.5\,\omega\)。
+
+```bash
+./build/bin/tdse examples/orbitals_3e_ground.in
+python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-energy 1e-4 --tol-overlap 0.999
+```
+
+```fortran
+&CONTROL
+  calculation = 'ground'
+  prefix      = 'orbitals_3e_ground'
+/
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0          ! 0.5 → 接触 Hartree λρ
+/
+&TIME
+  kinetic = 'bs'
+/
+&EIGEN
+  n_states = 3
+  method   = 'lanczos'
+/
+```
+
+实时：`examples/orbitals_3e.in`。MPI 可按轨道分：`mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in`。
+
+**2. 精确 \(N\) 体（打开软库仑 \(V_{ee}\)）。** 一张 `FunctionTree<3>` 表示 \(\psi(x_1,x_2,x_3)\)。坐标 `r[i]` 是第 \(i\) 个电子。哈密顿量是
+
+\[
+H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
++ \sum_{i<j}\frac{1}{\sqrt{(x_i-x_j)^2+a^2}}.
+\]
+
+这是三维自适应树，`prec` 要粗、\(T\) 要短。`fermion = .true.` 用 HO 轨道 \(n=0,1,2\) 的 Slater 行列式（无相互作用基态，也是有相互作用时的好初猜）。没有初等解析能；排斥使 \(E\) 高于 \(4.5\,\omega\)。
+
+```bash
+./build/bin/tdse examples/ho_3e_exact.in            # 短时 TDSE（推荐）
+./build/bin/tdse examples/ho_3e_exact_ground.in     # 可选 Lanczos；三维树，占内存
+```
+
+```fortran
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  fermion   = .true.
+  ee        = .true.
+  soft_a    = 1.0          ! V_ee 里的正则化长度 a
+/
+```
+
+只有做无相互作用对照时才设 `ee = .false.`（\(E=4.5\) 守恒）。轨道模式 `lambda > 0` 是接触平均场，和这里的 \(V_{ee}\) 不是一回事。
 
 ---
 
@@ -95,10 +159,10 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 - **自由** \(V=0\)
 - **软原子** \(-Z/\sqrt{r^2+a^2}\)
 - **激光** \(-E(t)\,x\)（偶极），\(E(t)=E_0 \sin(\omega_L t)\)，可选包络 \(\sin^2(\pi t/T)\)
-- **精确一维 N 体** 额外电子–电子 \(1/\sqrt{(x_i-x_j)^2+a^2}\)
+- **精确一维 N 体** 额外电子–电子 \(1/\sqrt{(x_i-x_j)^2+a^2}\)（`ee = .false.` 可关）
 - **轨道模式** 可选接触 Hartree \(\lambda\rho(\mathbf r)\)
 
-初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。一维双电子且 `fermion = .true.` 时初态反对称化。
+初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。精确一维 `fermion = .true.`：两电子 → 反对称双高斯；三电子谐振子 → HO 轨道 \(n=0,1,2\) 的 Slater 行列式。
 
 ---
 
@@ -157,7 +221,8 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 | `soft_a` | 1 | 软库仑长度 |
 | `Z` | 1 | 核电荷 |
 | `lambda` | 0 | 轨道接触 \(\lambda\) |
-| `fermion` | `.false.` | 精确 2e–1D 初态反对称化 |
+| `fermion` | `.false.` | 精确一维 2e/3e Slater 初态 |
+| `ee` | `.true.` | 精确一维 N 体是否含软库仑 \(V_{ee}\) |
 
 ### `&INITIAL`
 
@@ -356,6 +421,10 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `helium_1d.in` | 精确 1D 双电子 | 无 — 看 \(\\|\psi\\|\) |
 | `orbitals_2e.in` | 两轨道 + \(\lambda\rho\) | 无；适合 MPI |
 | `orbitals_4e.in` | 四轨道 + \(\lambda\rho\) | 无；最多 4 个 MPI rank |
+| `orbitals_3e_ground.in` | 三谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
+| `orbitals_3e.in` | 三轨道实时 | 无；适合 MPI |
+| `ho_3e_exact.in` | 精确一维三电子 + \(V_{ee}\) | 看 \(\\|\psi\\|\)，\(E>4.5\) |
+| `ho_3e_exact_ground.in` | 精确三电子相互作用基态（占内存） | 残差；\(E>4.5\) |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
 | `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
 | `ground_1d.in` | 谐振子基态，Lanczos + BS | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |

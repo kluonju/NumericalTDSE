@@ -30,6 +30,8 @@ namespace tdse {
 
 inline constexpr double PI = 3.14159265358979323846;
 
+inline std::complex<double> ho_eigen_1d(double x, int n, double omega);
+
 /** Harmonic-oscillator / Gaussian envelope (real part of the initial orbital). */
 template <int D>
 class InitialWavefunctionReal : public mrcpp::RepresentableFunction<D> {
@@ -62,6 +64,28 @@ protected:
                 const double a = orb(r[0], p_.x0) * orb(r[1], -p_.x0);
                 const double b = orb(r[0], -p_.x0) * orb(r[1], p_.x0);
                 return (a - b) / std::sqrt(2.0);
+            }
+            if constexpr (D >= 3) {
+                if (n == 3 && p_.fermion) {
+                    auto phi = [&](int k, double x) -> double {
+                        if (p_.trap == TrapKind::Harmonic && p_.omega > 0.0) {
+                            return ho_eigen_1d(x, k, p_.omega).real();
+                        }
+                        const double d = (std::abs(p_.x0) > 1.0e-14) ? p_.x0 : 0.7;
+                        const double c = (k == 0) ? -d : (k == 1 ? 0.0 : d);
+                        return orb(x, c);
+                    };
+                    double a[3][3];
+                    for (int k = 0; k < 3; ++k) {
+                        for (int e = 0; e < 3; ++e) {
+                            a[k][e] = phi(k, r[e]);
+                        }
+                    }
+                    const double det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) -
+                                       a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
+                                       a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+                    return det / std::sqrt(6.0);
+                }
             }
             double val = 1.0;
             const double nrm = std::pow(nrm1, static_cast<double>(D));
@@ -192,6 +216,9 @@ private:
     }
 
     double electron_electron(const mrcpp::Coord<D> &r) const {
+        if (!p_.ee) {
+            return 0.0;
+        }
         const bool nbody_1d = (p_.representation == Representation::Exact && p_.spatial_dim == 1 && p_.n_electrons > 1);
         if (!nbody_1d) {
             return 0.0;
@@ -262,7 +289,25 @@ inline double analytic_dipole(const Parameters &p, double t) {
 
 /** Closed-form energy of the initial Gaussian (conserved if E0 = 0). */
 inline double analytic_energy(const Parameters &p) {
-    if (p.representation != Representation::Exact || p.n_electrons != 1 || p.E0 != 0.0) {
+    if (p.E0 != 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (p.representation == Representation::Exact && p.spatial_dim == 1 && p.n_electrons > 1 &&
+        p.trap == TrapKind::Harmonic && p.omega > 0.0 && !p.ee) {
+        if (p.fermion) {
+            double E = 0.0;
+            for (int k = 0; k < p.n_electrons; ++k) {
+                E += p.omega * (static_cast<double>(k) + 0.5);
+            }
+            return E;
+        }
+        if (p.alpha > 0.0) {
+            const double n = static_cast<double>(p.n_electrons);
+            const double width = 0.25 * n * (p.alpha + p.omega * p.omega / p.alpha);
+            return width + 0.5 * p.omega * p.omega * p.x0 * p.x0 + 0.5 * p.k0 * p.k0;
+        }
+    }
+    if (p.representation != Representation::Exact || p.n_electrons != 1) {
         return std::numeric_limits<double>::quiet_NaN();
     }
     const double boost = 0.5 * p.k0 * p.k0;

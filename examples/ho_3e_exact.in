@@ -1,0 +1,39 @@
+! Exact 1D three-electron TDSE on FunctionTree<3>: ψ(x1,x2,x3).
+! Trap ½ω² Σ x_i² plus soft-Coulomb V_ee = Σ_{i<j} 1/sqrt((x_i-x_j)²+a²).
+! fermion=.true. → Slater of HO orbitals n=0,1,2 (good interacting trial).
+! 3D adaptive tree — keep prec coarse and T short. No elementary analytic E.
+! 精确一维三电子谐振子 + 软库仑排斥（D=3 的树）。
+&CONTROL
+  title       = 'exact 1D 3e HO with soft-Coulomb V_ee'
+  prefix      = 'ho_3e_exact'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 10
+  L         = 6.0
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  fermion   = .true.
+  ee        = .true.
+  soft_a    = 1.0
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.08
+  propagator = 'rk4'
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/
