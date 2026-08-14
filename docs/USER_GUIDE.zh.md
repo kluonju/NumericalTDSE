@@ -70,7 +70,7 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 ```bash
 ./build/bin/tdse examples/ground_1d.in
-python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-3
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 0.05 --tol-overlap 0.99
 python3 examples/plot_observables.py ground_1d_observables.csv
 python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
 ```
