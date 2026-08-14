@@ -1,0 +1,22 @@
+! Free Gaussian vs the analytic expanding packet.
+&CONTROL
+  title         = 'free Gaussian vs analytic'
+  prefix        = 'free_particle'
+  validate_free = .true.
+  ident_check   = .false.
+/
+
+&TIME
+  dt         = 0.01
+  T          = 0.20
+  propagator = 'rk4'
+/
+
+&SYSTEM
+  trap = 'free'
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/

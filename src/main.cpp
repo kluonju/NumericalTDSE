@@ -3,7 +3,7 @@
  * Schrödinger equation, built on MRCPP.
  *
  * Default demo: 1D harmonic oscillator, displaced Gaussian, Krylov propagator.
- * See README.md and `tdse --help`.
+ * Input is a Quantum ESPRESSO-style namelist file; see README.md and `tdse --help`.
  */
 
 #include "tdse/parameters.hpp"

@@ -1,0 +1,16 @@
+! Four 1D orbitals with a contact Hartree term λρ.
+&CONTROL
+  title  = 'four-electron orbital TDSE'
+  prefix = 'orbitals_4e'
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 4
+  mode      = 'orbital'
+  lambda    = 0.5
+/
+
+&TIME
+  propagator = 'rk4'
+/

@@ -1,0 +1,17 @@
+! Exact 1D two-electron TDSE on FunctionTree<2>, soft-Coulomb atom.
+&CONTROL
+  title  = '1D two-electron soft atom'
+  prefix = 'helium_1d'
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'atom'
+  fermion   = .true.
+/
+
+&TIME
+  T = 0.20
+/

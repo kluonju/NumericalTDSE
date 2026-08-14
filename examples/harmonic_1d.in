@@ -1,0 +1,35 @@
+! 1D harmonic oscillator, displaced Gaussian, RK4.
+! Unspecified keys keep their defaults (see `tdse --template`).
+&CONTROL
+  title       = '1D harmonic oscillator'
+  prefix      = 'harmonic_1d'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-4
+  order = 7
+  L     = 8.0
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.40
+  propagator = 'rk4'
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 1
+  trap      = 'harmonic'
+  omega     = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 1.0
+/
+
+&OUTPUT
+  plot = 'harmonic_1d'
+/

@@ -1,0 +1,12 @@
+! Strang split-operator in 1D. The solver switches to a Legendre basis so
+! TimeEvolutionOperator can apply exp(-i T Δt).
+&CONTROL
+  title  = '1D Strang + TimeEvolutionOperator'
+  prefix = 'split_1d'
+/
+
+&TIME
+  dt         = 0.01
+  T          = 0.10
+  propagator = 'split'
+/

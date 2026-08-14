@@ -72,6 +72,7 @@ endif()
 add_executable(tdse
     src/main.cpp
     src/parameters.cpp
+    src/input.cpp
 )
 
 target_include_directories(tdse PRIVATE
@@ -104,6 +105,16 @@ add_test(NAME tdse_smoke
 )
 set_tests_properties(tdse_smoke PROPERTIES
     TIMEOUT 300
+)
+add_test(NAME tdse_template
+    COMMAND $<TARGET_FILE:tdse> --template
+)
+add_test(NAME tdse_namelist_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/smoke.in
+)
+set_tests_properties(tdse_namelist_smoke PROPERTIES
+    TIMEOUT 300
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
 message(STATUS "NumericalTDSE: MRCPP target = ${NUMTDSE_MRCPP_TARGET}")

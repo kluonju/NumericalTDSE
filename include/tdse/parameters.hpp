@@ -75,10 +75,14 @@ struct Parameters {
     bool laser_envelope = false; ///< sin²(π t / T) envelope if true, CW otherwise
 
     // --- I/O ---
+    std::string title;
+    std::string prefix;
+    std::string input_path;
     std::string output = "observables.csv";
     std::string plot_prefix; ///< If non-empty, write 1D line plots at t = 0 and t = T
     int n_plot_points = 800;
     int printlevel = 0;
+    bool output_explicit = false; ///< true if output= was set (do not rewrite from prefix)
     bool smoke = false;     ///< Tiny run for ctest
     bool validate_free = false; ///< Compare 1D free particle with the analytic Gaussian
     bool ident_check = true; ///< Apply IdentityConvolution once at t = 0 as a sanity check
