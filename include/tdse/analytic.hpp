@@ -10,8 +10,9 @@
  *
  * Coordinate layout
  * -----------------
- * Exact N-body, 1D electrons (D = N):
- *     r[i] is the position of electron i = 0..N-1.
+ * Exact N-body (D = n_e * spatial_dim ≤ 4):
+ *     electron i occupies r[i*dim .. i*dim+dim-1].
+ *     1D electrons (dim = 1): r[i] is the position of electron i.
  * One electron in D spatial dimensions:
  *     r[0..D-1] is the Cartesian coordinate of that electron.
  */
@@ -29,6 +30,10 @@
 namespace tdse {
 
 inline constexpr double PI = 3.14159265358979323846;
+
+inline bool is_exact_nbody(const Parameters &p) {
+    return p.representation == Representation::Exact && p.n_electrons > 1;
+}
 
 inline std::complex<double> ho_eigen_1d(double x, int n, double omega);
 
@@ -52,7 +57,7 @@ protected:
 
     double gaussian_envelope(const mrcpp::Coord<D> &r) const {
         const int n = p_.n_electrons;
-        const bool nbody_1d = (p_.representation == Representation::Exact && p_.spatial_dim == 1 && n > 1);
+        const bool nbody_1d = is_exact_nbody(p_) && p_.spatial_dim == 1;
 
         if (nbody_1d) {
             // Product of 1D Gaussians, optionally antisymmetrised for N = 2.
@@ -181,11 +186,16 @@ private:
                 return 0.5 * p_.omega * p_.omega * r2;
             }
             case TrapKind::SoftAtom: {
-                const bool nbody_1d = (p_.representation == Representation::Exact && p_.spatial_dim == 1 && p_.n_electrons > 1);
-                if (nbody_1d) {
+                if (is_exact_nbody(p_)) {
+                    const int dim = p_.spatial_dim;
                     double v = 0.0;
-                    for (int i = 0; i < D; ++i) {
-                        v += -p_.Z / std::sqrt(r[i] * r[i] + p_.soft_a * p_.soft_a);
+                    for (int i = 0; i < p_.n_electrons; ++i) {
+                        double r2 = 0.0;
+                        for (int d = 0; d < dim; ++d) {
+                            const double x = r[i * dim + d];
+                            r2 += x * x;
+                        }
+                        v += -p_.Z / std::sqrt(r2 + p_.soft_a * p_.soft_a);
                     }
                     return v;
                 }
@@ -204,11 +214,11 @@ private:
         if (E == 0.0) {
             return 0.0;
         }
-        const bool nbody_1d = (p_.representation == Representation::Exact && p_.spatial_dim == 1 && p_.n_electrons > 1);
-        if (nbody_1d) {
+        if (is_exact_nbody(p_)) {
             double dipole = 0.0;
-            for (int i = 0; i < D; ++i) {
-                dipole += r[i];
+            const int dim = p_.spatial_dim;
+            for (int i = 0; i < p_.n_electrons; ++i) {
+                dipole += r[i * dim];
             }
             return -E * dipole;
         }
@@ -216,19 +226,21 @@ private:
     }
 
     double electron_electron(const mrcpp::Coord<D> &r) const {
-        if (!p_.ee) {
-            return 0.0;
-        }
-        const bool nbody_1d = (p_.representation == Representation::Exact && p_.spatial_dim == 1 && p_.n_electrons > 1);
-        if (!nbody_1d) {
+        if (!p_.ee || !is_exact_nbody(p_)) {
             return 0.0;
         }
         double v = 0.0;
         const double a2 = p_.soft_a * p_.soft_a;
-        for (int i = 0; i < D; ++i) {
-            for (int j = i + 1; j < D; ++j) {
-                const double dx = r[i] - r[j];
-                v += 1.0 / std::sqrt(dx * dx + a2);
+        const int dim = p_.spatial_dim;
+        const int n = p_.n_electrons;
+        for (int i = 0; i < n; ++i) {
+            for (int j = i + 1; j < n; ++j) {
+                double r2 = 0.0;
+                for (int d = 0; d < dim; ++d) {
+                    const double dx = r[i * dim + d] - r[j * dim + d];
+                    r2 += dx * dx;
+                }
+                v += 1.0 / std::sqrt(r2 + a2);
             }
         }
         return v;
@@ -292,9 +304,8 @@ inline double analytic_energy(const Parameters &p) {
     if (p.E0 != 0.0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    if (p.representation == Representation::Exact && p.spatial_dim == 1 && p.n_electrons > 1 &&
-        p.trap == TrapKind::Harmonic && p.omega > 0.0 && !p.ee) {
-        if (p.fermion) {
+    if (is_exact_nbody(p) && p.trap == TrapKind::Harmonic && p.omega > 0.0 && !p.ee) {
+        if (p.fermion && p.spatial_dim == 1) {
             double E = 0.0;
             for (int k = 0; k < p.n_electrons; ++k) {
                 E += p.omega * (static_cast<double>(k) + 0.5);
@@ -302,8 +313,8 @@ inline double analytic_energy(const Parameters &p) {
             return E;
         }
         if (p.alpha > 0.0) {
-            const double n = static_cast<double>(p.n_electrons);
-            const double width = 0.25 * n * (p.alpha + p.omega * p.omega / p.alpha);
+            const double Dm = static_cast<double>(p.spatial_dim * p.n_electrons);
+            const double width = 0.25 * Dm * (p.alpha + p.omega * p.omega / p.alpha);
             return width + 0.5 * p.omega * p.omega * p.x0 * p.x0 + 0.5 * p.k0 * p.k0;
         }
     }
@@ -400,7 +411,20 @@ inline std::complex<double> ho_eigen_1d(double x, int n, double omega) {
 
 /** Isotropic HO energy of the n-th lowest state (0-based), including degeneracy. */
 inline double analytic_eigen_energy(const Parameters &p, int n) {
-    if (p.representation == Representation::Exact && p.n_electrons != 1) {
+    if (is_exact_nbody(p)) {
+        if (p.lambda_contact != 0.0 || p.ee || p.trap != TrapKind::Harmonic || p.omega <= 0.0 || n != 0) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        if (p.fermion && p.spatial_dim == 1) {
+            double E = 0.0;
+            for (int k = 0; k < p.n_electrons; ++k) {
+                E += p.omega * (static_cast<double>(k) + 0.5);
+            }
+            return E;
+        }
+        if (!p.fermion) {
+            return p.omega * 0.5 * static_cast<double>(p.n_electrons * p.spatial_dim);
+        }
         return std::numeric_limits<double>::quiet_NaN();
     }
     if (p.lambda_contact != 0.0) {

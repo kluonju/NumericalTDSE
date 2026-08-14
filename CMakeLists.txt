@@ -65,12 +65,32 @@ if(NOT MRCPP_FOUND)
     set(ENABLE_MPI ${NUMTDSE_MPI} CACHE BOOL "Forward MPI to MRCPP" FORCE)
     set(ENABLE_OPENMP ${NUMTDSE_OPENMP} CACHE BOOL "Forward OpenMP to MRCPP" FORCE)
 
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(NOT Python3_EXECUTABLE)
+        find_program(Python3_EXECUTABLE NAMES python3 python)
+    endif()
+    if(NOT Python3_EXECUTABLE)
+        message(FATAL_ERROR
+            "python3 is required to patch fetched MRCPP for FunctionTree<4>")
+    endif()
+
+    set(NUMTDSE_MRCPP_D4_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_mrcpp_d4.py")
     FetchContent_Declare(mrcpp
         GIT_REPOSITORY https://github.com/MRChemSoft/mrcpp.git
         GIT_TAG        ${NUMTDSE_MRCPP_GIT_TAG}
         GIT_SHALLOW    OFF
+        PATCH_COMMAND  "${Python3_EXECUTABLE}" "${NUMTDSE_MRCPP_D4_PATCH}"
     )
     FetchContent_MakeAvailable(mrcpp)
+    # Populate skips PATCH_COMMAND when the source is already present.
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${NUMTDSE_MRCPP_D4_PATCH}" "${mrcpp_SOURCE_DIR}"
+        RESULT_VARIABLE _numtdse_mrcpp_d4
+    )
+    if(NOT _numtdse_mrcpp_d4 EQUAL 0)
+        message(FATAL_ERROR "Failed to patch fetched MRCPP for FunctionTree<4>")
+    endif()
+    message(STATUS "Patched fetched MRCPP at ${mrcpp_SOURCE_DIR} for FunctionTree<4>")
 endif()
 
 if(TARGET MRCPP::mrcpp)
@@ -148,6 +168,27 @@ add_test(NAME tdse_itp_smoke
     COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/ground_itp.in
 )
 set_tests_properties(tdse_itp_smoke PROPERTIES
+    TIMEOUT 300
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME tdse_invert_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/invert_smoke.in
+)
+set_tests_properties(tdse_invert_smoke PROPERTIES
+    TIMEOUT 180
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME tdse_invert_2e2d_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/invert_2e2d_smoke.in
+)
+set_tests_properties(tdse_invert_2e2d_smoke PROPERTIES
+    TIMEOUT 180
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME tdse_harmonic_2e2d_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/harmonic_2e2d_smoke.in
+)
+set_tests_properties(tdse_harmonic_2e2d_smoke PROPERTIES
     TIMEOUT 300
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )

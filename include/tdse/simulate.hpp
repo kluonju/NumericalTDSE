@@ -6,6 +6,7 @@
 
 #include "tdse/analytic.hpp"
 #include "tdse/eigen.hpp"
+#include "tdse/invert.hpp"
 #include "tdse/observables.hpp"
 #include "tdse/operators.hpp"
 #include "tdse/parameters.hpp"
@@ -327,6 +328,9 @@ int simulate_orbitals(const Parameters &p) {
 
 inline int run(const Parameters &p) {
     print_parameters(p);
+    if (is_invert(p)) {
+        return run_invert(p);
+    }
     if (is_stationary(p)) {
         return run_stationary(p);
     }
@@ -350,8 +354,10 @@ inline int run(const Parameters &p) {
             return simulate_exact<2>(p);
         case 3:
             return simulate_exact<3>(p);
+        case 4:
+            return simulate_exact<4>(p);
         default:
-            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2 or 3");
+            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2, 3 or 4");
     }
 }
 

@@ -378,7 +378,12 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
     std::vector<CplxFun<D> *> defs;
     const double tau = std::min(0.10, std::max(p.dt, 0.02));
     const int polish = std::min(8, std::max(2, p.eigen_maxiter));
-    mrcpp::HeatOperator<D> heat(ops.mra, 0.5 * tau, prec);
+    // 4D heat-kernel convolutions are too expensive for a smoke/ground run;
+    // Lanczos without polish is still well-defined.
+    std::unique_ptr<mrcpp::HeatOperator<D>> heat;
+    if constexpr (D <= 3) {
+        heat = std::make_unique<mrcpp::HeatOperator<D>>(ops.mra, 0.5 * tau, prec);
+    }
     for (int k = 0; k < n_states; ++k) {
         CplxFun<D> trial(ops.mra);
         project_eigen_guess(prec, trial, p, k);
@@ -389,11 +394,15 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
             if (one.empty()) {
                 throw std::runtime_error("Lanczos returned no state");
             }
-            heat_polish(prec, *one[0].psi, ops, V, heat, tau, polish, defs);
+            if constexpr (D <= 3) {
+                heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, defs);
+            }
             fill_pair_observables(prec, one[0], ops, V, p, k);
             pairs.push_back(std::move(one[0]));
         } else {
-            heat_polish(prec, trial, ops, V, heat, tau, polish, defs);
+            if constexpr (D <= 3) {
+                heat_polish(prec, trial, ops, V, *heat, tau, polish, defs);
+            }
             EigenPair<D> ep;
             ep.psi = std::make_unique<CplxFun<D>>(ops.mra);
             copy_into(*ep.psi, trial);
@@ -425,6 +434,10 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
     const int nsteps = std::max(1, std::min(p.eigen_maxiter, static_cast<int>(std::llround(p.T / p.dt))));
     if (p.dt <= 0.0) {
         throw std::invalid_argument("ITP requires dt > 0");
+    }
+    if constexpr (D > 3) {
+        throw std::invalid_argument(
+                "ITP HeatOperator is not used for MRA dimension 4; set method = 'lanczos'");
     }
     mrcpp::print::header(0, "Building HeatOperator exp((Δτ/2) ∇²) = exp(−T Δτ)");
     mrcpp::HeatOperator<D> heat(ops.mra, 0.5 * p.dt, prec);
@@ -821,8 +834,10 @@ inline int run_stationary(const Parameters &p) {
             return simulate_stationary_exact<2>(p);
         case 3:
             return simulate_stationary_exact<3>(p);
+        case 4:
+            return simulate_stationary_exact<4>(p);
         default:
-            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2 or 3");
+            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2, 3 or 4");
     }
 }
 

@@ -1,0 +1,40 @@
+! Two electrons in 2D: interacting inversion on a 4D configuration-space grid.
+! ψ(x1,y1,x2,y2) is one particle in 4D; v_ext(x,y) and n(x,y) stay 2D.
+! 二维双电子：组态空间是 4 维，反演的仍是二维 v_ext。
+! N=13 → 13^4 = 28561 points; raise n_grid to 17–21 for a smoother v.
+&CONTROL
+  calculation = 'invert'
+  title       = '2e in 2D as 1e in 4D inversion'
+  prefix      = 'invert_2e2d'
+/
+
+&MRA
+  L = 5.0
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 2
+  trap      = 'harmonic'
+  omega     = 1.0
+  soft_a    = 1.0
+  ee        = .true.
+/
+
+&INITIAL
+  alpha = 1.0
+/
+
+&INVERT
+  target  = 'self'
+  guess   = 'scaled'
+  scale   = 0.55
+  n_grid  = 13
+  gamma   = 0.30
+  beta    = 1.0
+  w0      = 1.0
+  tol     = 2.0d-3
+  maxiter = 12
+  inner   = 25
+  tau     = 0.08
+/

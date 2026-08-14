@@ -17,7 +17,7 @@ enum class KineticKind {
 };
 
 enum class Representation {
-    Exact,  ///< Full N-body wave function on FunctionTree<D>, D = n_e * dim ≤ 3
+    Exact,  ///< Full N-body wave function on FunctionTree<D>, D = n_e * dim ≤ 4
     Orbital ///< Up to 4 orbitals, each a FunctionTree<spatial_dim>
 };
 
@@ -30,7 +30,21 @@ enum class TrapKind {
 enum class JobKind {
     Tdse,   ///< Real-time i ∂t ψ = H ψ
     Ground, ///< Lowest eigenstate(s); default n_states = 1 (exact) or n_electrons (orbital)
-    Eigen   ///< Several lowest eigenstates; default n_states = 4 (exact) or n_electrons (orbital)
+    Eigen,  ///< Several lowest eigenstates; default n_states = 4 (exact) or n_electrons (orbital)
+    Invert  ///< Interacting v_ext[n] inversion (TGK08 / Peirs), 2 electrons
+};
+
+enum class InvertTarget {
+    Self, ///< Ground-state density of the namelist trap, then recover v_ext
+    File  ///< Density from invert_density_file
+};
+
+enum class InvertGuess {
+    Scaled,   ///< invert_scale × true trap (self-test)
+    Harmonic, ///< ½ ω² r²
+    Zero,     ///< v = 0
+    Atom,     ///< −Z / sqrt(r² + a²)
+    Hx        ///< v_s − ½ v_H (exact exchange, no correlation)
 };
 
 enum class EigenMethod {
@@ -111,11 +125,31 @@ struct Parameters {
     double eigen_thr = 1.0e-6;  ///< ITP / SCF: stop when |ΔE| is below this
     double eigen_residual = 0.0; ///< ||(H−E)ψ|| threshold; 0 → 50 × prec
     int eigen_maxiter = 80;     ///< ITP steps or SCF cycles
+
+    // --- Density-to-potential inversion (TGK08 / Peirs, 2 electrons) ---
+    InvertTarget invert_target = InvertTarget::Self;
+    InvertGuess invert_guess = InvertGuess::Scaled;
+    int n_grid = 0;                 ///< Points per spatial axis; 0 → 49 (1D) or 15 (2D)
+    double invert_gamma = 0.25;     ///< Step γ in v ← v + γ (w0 + |r|^β) (n − n*)
+    double invert_beta = 1.0;       ///< Tail weight exponent β (TGK08)
+    double invert_w0 = 1.0;         ///< Weight floor; 0 → freeze v(0) as in TGK08
+    double invert_tol = 1.0e-4;     ///< Stop when ∫ |n − n*| < this
+    int invert_maxiter = 40;        ///< Outer inversion iterations
+    int invert_inner = 40;          ///< Imag-time steps per outer iteration
+    double invert_tau = 0.08;       ///< Imag-time step (implicit kinetic split)
+    double invert_ncut = 1.0e-3;    ///< Density mask for v_s / v comparison
+    double invert_scale = 0.55;     ///< Scaled-trap initial guess
+    double invert_dvmax = 0.5;      ///< Clip |Δv| per outer step
+    bool invert_check = false;      ///< Non-zero exit if the L1 error does not fall
+    bool invert_ks_only = false;    ///< Skip interacting inversion; print v_s, v_H, v_c
+    std::string invert_density_file; ///< Target density if invert_target = File
 };
 
 inline bool is_stationary(const Parameters &p) {
     return p.job == JobKind::Ground || p.job == JobKind::Eigen;
 }
+
+inline bool is_invert(const Parameters &p) { return p.job == JobKind::Invert; }
 
 /** Physical lower bound used to discard spurious MW-kinetic Ritz values. */
 inline double energy_floor(const Parameters &p) {
@@ -136,6 +170,8 @@ const char *kinetic_name(KineticKind k);
 const char *representation_name(Representation r);
 const char *job_kind_name(JobKind j);
 const char *eigen_method_name(EigenMethod m);
+const char *invert_target_name(InvertTarget t);
+const char *invert_guess_name(InvertGuess g);
 void print_parameters(const Parameters &p);
 
 } // namespace tdse

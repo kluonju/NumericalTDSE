@@ -1,0 +1,41 @@
+! TGK08 / Peirs interacting inversion, 2 electrons in 1D (config space 2D).
+! Round-trip: compute n from the trap, forget v, recover it from n.
+! ctest: L1 density error must fall.
+&CONTROL
+  calculation = 'invert'
+  title       = '2e-1D inversion smoke (TGK08)'
+  prefix      = 'invert_smoke'
+  ident_check = .false.
+/
+
+&MRA
+  L = 6.0
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  trap      = 'harmonic'
+  omega     = 1.0
+  soft_a    = 1.0
+  ee        = .true.
+/
+
+&INITIAL
+  alpha = 1.0
+/
+
+&INVERT
+  target  = 'self'
+  guess   = 'scaled'
+  scale   = 0.55
+  n_grid  = 21
+  gamma   = 0.35
+  beta    = 1.0
+  w0      = 1.0
+  tol     = 1.0d-3
+  maxiter = 8
+  inner   = 20
+  tau     = 0.08
+  check   = .true.
+/
