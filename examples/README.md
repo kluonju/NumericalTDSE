@@ -38,8 +38,11 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `ground_atom.in` | 1D soft-Coulomb ground | 软库仑基态 | residual |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | 两轨道（无相互作用） | \(0.5, 1.5\) |
 | `helium_ground.in` | exact 1D 2e ground | 精确双电子基态 | residual |
+| `invert_smoke.in` | 2e-1D inversion ctest | 一维双电子反演短跑 | L1 of \(n\) |
+| `invert_2e1d.in` | TGK08 1D helium inversion | 一维氦密度反演 | recover \(v_\mathrm{ext}\) |
+| `invert_2e2d.in` | 2e in 2D as 1e in 4D | 二维双电子（4 维组态） | recover \(v_\mathrm{ext}(x,y)\) |
 | `smoke.in` | ctest namelist | 短跑 | \(E\approx 0.625\) |
 | `ground_smoke.in` | Lanczos ctest | 基态短跑 | \(E=0.5\) |
 | `orbitals_smoke.in` | MPI ctest | MPI 短跑 | — |
 
-Tools: `plot_observables.py`, `plot_wavefunction.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.
+Tools: `plot_observables.py`, `plot_wavefunction.py`, `plot_inversion.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.

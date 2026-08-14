@@ -1,0 +1,39 @@
+! Thiele–Gross–Kümmel interacting inversion for the 1D two-electron atom
+! (PRL 100, 153004 (2008)). Wave function on an N×N grid, ψ(x1,x2).
+! 一维双电子（TGK08）相互作用密度反演：从 n(z) 求 v_ext(z)。
+&CONTROL
+  calculation = 'invert'
+  title       = 'TGK08 1D two-electron inversion'
+  prefix      = 'invert_2e1d'
+/
+
+&MRA
+  L = 8.0
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  trap      = 'atom'
+  Z         = 2.0
+  soft_a    = 1.0
+  ee        = .true.
+/
+
+&INITIAL
+  alpha = 1.0
+/
+
+&INVERT
+  target  = 'self'
+  guess   = 'scaled'
+  scale   = 0.6
+  n_grid  = 41
+  gamma   = 0.30
+  beta    = 1.0
+  w0      = 1.0
+  tol     = 5.0d-4
+  maxiter = 30
+  inner   = 40
+  tau     = 0.06
+/

@@ -26,7 +26,7 @@ i\,\partial_t\psi = \hat H(t)\,\psi,\qquad
 
 三种传播子：`krylov`（默认）、`split`（Strang）、`rk4`。
 
-定态计算（`calculation = 'ground'` 或 `'eigen'`）用 Lanczos/Ritz（默认）或虚时传播求同一 \(H\) 的最低本征态。
+定态计算（`calculation = 'ground'` 或 `'eigen'`）用 Lanczos/Ritz（默认）或虚时传播求同一 \(H\) 的最低本征态。`calculation = 'invert'` 对两电子做相互作用密度反演 \(v_\mathrm{ext}[n]\)（TGK08）。
 
 ---
 
@@ -170,14 +170,14 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 
 自由格式，Quantum ESPRESSO 风格：`&SECTION ... /`。只写要改的关键字，其余用默认。注释：`!` 或 `#`。实数：`1.0d-4`。逻辑：`.true.` / `.false.`。字符串：`'quoted'` 或裸词。
 
-段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN`  
-别名：`CTRL`；`GRID`/`NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION`/`PSI` → `INITIAL`；`FIELD` → `LASER`；`IO`/`OUT` → `OUTPUT`；`PARA`/`OMP` → `PARALLEL`；`GROUND`/`GS`/`SCF` → `EIGEN`。
+段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN` `&INVERT`  
+别名：`CTRL`；`GRID`/`NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION`/`PSI` → `INITIAL`；`FIELD` → `LASER`；`IO`/`OUT` → `OUTPUT`；`PARA`/`OMP` → `PARALLEL`；`GROUND`/`GS`/`SCF` → `EIGEN`；`TGK`/`PEIRS`/`INVERSION` → `INVERT`。
 
 ### `&CONTROL`
 
 | 关键字 | 默认 | 含义 |
 |---|---|---|
-| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'smoke'`（`smoke` 是短跑预设，后面的关键字仍生效） |
+| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'invert'` / `'smoke'`（`smoke` 是短跑预设，后面的关键字仍生效） |
 | `title` | 空 | 写进日志 |
 | `prefix` | 空 | 未写 `output=` 时观测文件为 `{prefix}_observables.csv` |
 | `printlevel` | 0 | MRCPP 详细程度 |
@@ -265,6 +265,38 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 | `conv_thr` | `1d-6` | ITP / SCF：\(\lvert\Delta E\rvert\) 阈值 |
 | `residual` | `0` | \(\lVert(H-E)\psi\rVert\) 阈值；`0` → \(50\times\) `prec` |
 | `max_iter` | 80 | 虚时步数或 SCF 循环 |
+
+### `&INVERT`
+
+`calculation = 'invert'` 时使用。两电子相互作用基态的密度反演 \(n(\mathbf r)\to v_\mathrm{ext}(\mathbf r)\)，算法来自 Thiele, Gross, Kümmel, Phys. Rev. Lett. **100**, 153004 (2008) 以及 Peirs–Van Neck–Waroquier 迭代。关键字也可写在 `&CONTROL` 里。
+
+| 关键字 | 默认 | 含义 |
+|---|---|---|
+| `target` | `'self'` | `'self'`：先用 namelist 势阱求基态密度再反演；`'file'`：读 `density_file` |
+| `guess` | `'scaled'` | `'scaled'` / `'harmonic'` / `'zero'` / `'atom'` / `'hx'`（\(v_s-\tfrac12 v_H\)） |
+| `n_grid` | 49 / 15 | 每个空间方向的格点数（强制为奇数）。1D 默认 49，2D 默认 15 |
+| `gamma` | 0.25 | 步长 \(\gamma\)：\(v\leftarrow v+\gamma(w_0+\lvert r\rvert^\beta)(n-n^*)\) |
+| `beta` | 1 | 尾部权重 \(\beta\) |
+| `w0` | 1 | 权重下限；`0` 时冻结 \(v(0)\)（与论文一致） |
+| `tol` | `1d-4` | \(\int\lvert n-n^*\rvert\) 小于此值则停止 |
+| `maxiter` | 40 | 外层迭代 |
+| `inner` | 40 | 每次外层迭代的虚时步数 |
+| `tau` | 0.08 | 虚时步长（隐式动能劈裂） |
+| `scale` | 0.55 | 缩放势阱初猜 |
+| `ncut` | `1d-3` | 计算 \(v_s\) 和 \(v\) RMS 时的密度阈值 |
+| `check` | `.false.` | L1 误差不下降则非零退出 |
+| `ks_only` | `.false.` | 跳过相互作用反演，只输出 \(v_s,v_H,v_c\) |
+| `density_file` | 空 | `target = 'file'` 时的目标密度 |
+
+**用 4 维单粒子，而不是“二维套二维”。** 两个二维电子的波函数是 \(\psi(x_1,y_1,x_2,y_2)\)，这就是 4 维组态空间里的**一条**薛定谔方程：动能是 4 维拉普拉斯，\(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) 是局域 4 维势。若在二维轨道基里做 CI（“2D in 2D”），需要双电子积分，而且基组截断。MRCPP 没有 `FunctionTree<4>`，所以反走均匀网格。反演的对象仍是物理的 \(v_\mathrm{ext}(x,y)\)；4 维只是求解基态的表示。论文里的一维氦模型同理，只是 \(\psi(x_1,x_2)\) 在 \(N\times N\) 格子上。
+
+得到 \(v_\mathrm{ext}\) 后，两电子单态的 KS 反演是代数的：\(\varphi=\sqrt{n/2}\)，\(v_s=(2\varphi)^{-1}\nabla^2\varphi+\mathrm{const}\)，\(v_c=v_s-\tfrac12 v_H-v_\mathrm{ext}\)。
+
+```bash
+./build/bin/tdse examples/invert_2e1d.in
+./build/bin/tdse examples/invert_2e2d.in
+python3 examples/plot_inversion.py invert_2e1d_observables.csv
+```
 
 激光必须关闭（`E0 = 0`）。要求多个谐振子态时，初猜不要取偶函数（`x0 ≠ 0`），否则与奇宇称本征函数正交。
 
@@ -435,6 +467,9 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `ground_atom.in` | 一维软库仑基态 | 只看残差 |
 | `orbitals_ground.in` | 两谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | 精确一维双电子基态 | 只看残差 |
+| `invert_smoke.in` | 一维双电子反演短跑 | \(n\) 的 L1 下降 |
+| `invert_2e1d.in` | TGK08 一维氦反演 | 收回 \(v_\mathrm{ext}\) |
+| `invert_2e2d.in` | 二维双电子当作 4 维单粒子 | 收回 \(v_\mathrm{ext}(x,y)\) |
 
 演示输入网格较粗，为了尽快跑完。定态能量请用 `kinetic = 'bs'`，并把 `prec` 降到 `1d-5`–`1d-6`（见 `ground_1d_precise.in`）。
 
@@ -460,7 +495,8 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 
 ## 12. 限制
 
-- MRCPP 只实例化 \(D=1,2,3\) 的 `FunctionTree<D>`。四电子精确 N 体做不到，请用 `mode = 'orbital'`。
+- MRCPP 只实例化 \(D=1,2,3\) 的 `FunctionTree<D>`。四电子精确 N 体做不到，请用 `mode = 'orbital'`。二维双电子精确反演（`calculation = 'invert'`）走 4 维均匀网格，不是多小波树。
+- 反演只在密度足够大的区域可信（论文经验：\(n\gtrsim 10^{-2}\)）。\(v_\mathrm{ext}\) 的加性常数通过在密度峰值处对齐来固定。
 - `TimeEvolutionOperator` 仅 1D Legendre（传入 \(\tau=\Delta t/2\)，因为库里是 \(\exp(i\tau\partial_x^2)=\exp(-i T\Delta t)\)）。
 - 接触 \(\lambda\rho\) 不是库仑 Hartree。
 - MPI 不能把单棵树按空间分解。

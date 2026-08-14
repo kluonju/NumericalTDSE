@@ -28,8 +28,8 @@ void usage(const char *argv0) {
         << "  --smoke              Tiny built-in RK4 run (ctest); no input file\n"
         << "  -h, --help           This message\n"
         << "\n"
-        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT &PARALLEL &EIGEN\n"
-        << "  calculation = 'tdse' | 'ground' | 'eigen' | 'smoke'\n"
+        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT &PARALLEL &EIGEN &INVERT\n"
+        << "  calculation = 'tdse' | 'ground' | 'eigen' | 'invert' | 'smoke'\n"
         << "Hybrid MPI+OpenMP: mpirun -np <ranks> --bind-to core:overload-allowed \\\n"
         << "                   -x OMP_NUM_THREADS=<threads> " << argv0 << " job.in\n"
         << "Run `" << argv0 << " --template` for keywords and defaults.\n";
@@ -110,6 +110,34 @@ const char *job_kind_name(JobKind j) {
             return "ground";
         case JobKind::Eigen:
             return "eigen";
+        case JobKind::Invert:
+            return "invert";
+    }
+    return "?";
+}
+
+const char *invert_target_name(InvertTarget t) {
+    switch (t) {
+        case InvertTarget::Self:
+            return "self";
+        case InvertTarget::File:
+            return "file";
+    }
+    return "?";
+}
+
+const char *invert_guess_name(InvertGuess g) {
+    switch (g) {
+        case InvertGuess::Scaled:
+            return "scaled";
+        case InvertGuess::Harmonic:
+            return "harmonic";
+        case InvertGuess::Zero:
+            return "zero";
+        case InvertGuess::Atom:
+            return "atom";
+        case InvertGuess::Hx:
+            return "hx";
     }
     return "?";
 }
@@ -157,6 +185,13 @@ void print_parameters(const Parameters &p) {
         println(0, "  eigen_method    : " << eigen_method_name(p.eigen_method));
         mrcpp::print::value(0, "n_states", static_cast<double>(p.n_states));
         mrcpp::print::value(0, "krylov_dim", static_cast<double>(p.krylov_dim));
+    }
+    if (is_invert(p)) {
+        println(0, "  invert_target   : " << invert_target_name(p.invert_target));
+        println(0, "  invert_guess    : " << invert_guess_name(p.invert_guess));
+        mrcpp::print::value(0, "n_grid", static_cast<double>(p.n_grid));
+        mrcpp::print::value(0, "invert_gamma", p.invert_gamma);
+        mrcpp::print::value(0, "invert_maxiter", static_cast<double>(p.invert_maxiter));
     }
     println(0, "  output          : " << p.output);
     mrcpp::print::value(0, "MPI ranks", static_cast<double>(parallel::size));

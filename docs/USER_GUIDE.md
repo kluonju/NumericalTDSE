@@ -26,7 +26,7 @@ Two representations:
 
 Three time propagators: `krylov` (default), `split` (Strang), `rk4`.
 
-Stationary jobs (`calculation = 'ground'` or `'eigen'`) find the lowest eigenstates of the same \(H\) by Lanczos/Ritz (default) or imaginary-time propagation.
+Stationary jobs (`calculation = 'ground'` or `'eigen'`) find the lowest eigenstates of the same \(H\) by Lanczos/Ritz (default) or imaginary-time propagation. `calculation = 'invert'` recovers the interacting \(v_\mathrm{ext}[n]\) for two electrons (TGK08).
 
 ---
 
@@ -170,14 +170,14 @@ Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced
 
 Free-format, Quantum ESPRESSO style: `&SECTION ... /`. Write only the keys you need; the rest keep defaults. Comments: `!` or `#`. Reals: `1.0d-4`. Booleans: `.true.` / `.false.`. Strings: `'quoted'` or bare.
 
-Sections: `&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN`  
-Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNCTION`/`PSI` → `INITIAL`; `FIELD` → `LASER`; `IO`/`OUT` → `OUTPUT`; `PARA`/`OMP` → `PARALLEL`; `GROUND`/`GS`/`SCF` → `EIGEN`.
+Sections: `&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN` `&INVERT`  
+Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNCTION`/`PSI` → `INITIAL`; `FIELD` → `LASER`; `IO`/`OUT` → `OUTPUT`; `PARA`/`OMP` → `PARALLEL`; `GROUND`/`GS`/`SCF` → `EIGEN`; `TGK`/`PEIRS`/`INVERSION` → `INVERT`.
 
 ### `&CONTROL`
 
 | Keyword | Default | Meaning |
 |---|---|---|
-| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'smoke'` (`smoke` is a tiny RK4 preset; later keys override it) |
+| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'invert'` / `'smoke'` (`smoke` is a tiny RK4 preset; later keys override it) |
 | `title` | empty | printed in the log |
 | `prefix` | empty | if set and `output=` is omitted → `{prefix}_observables.csv` |
 | `printlevel` | 0 | MRCPP verbosity |
@@ -265,6 +265,38 @@ Used when `calculation = 'ground'` or `'eigen'`. Keywords are also accepted in `
 | `conv_thr` | `1d-6` | ITP / SCF: stop when \(\lvert\Delta E\rvert\) is below this |
 | `residual` | `0` | \(\lVert(H-E)\psi\rVert\) threshold; `0` → \(50\times\) `prec` |
 | `max_iter` | 80 | ITP steps or SCF cycles |
+
+### `&INVERT`
+
+Used when `calculation = 'invert'`. Two-electron interacting inversion of \(n(\mathbf r)\to v_\mathrm{ext}(\mathbf r)\) following Thiele, Gross and Kümmel, Phys. Rev. Lett. **100**, 153004 (2008) and the Peirs–Van Neck–Waroquier update. Keywords are also accepted in `&CONTROL`.
+
+| Keyword | Default | Meaning |
+|---|---|---|
+| `target` | `'self'` | `'self'`: ground-state density of the namelist trap, then recover \(v_\mathrm{ext}\). `'file'`: read `density_file` |
+| `guess` | `'scaled'` | `'scaled'` / `'harmonic'` / `'zero'` / `'atom'` / `'hx'` (\(v_s-\tfrac12 v_H\)) |
+| `n_grid` | 49 / 15 | points per spatial axis (forced odd). 1D default 49, 2D default 15 |
+| `gamma` | 0.25 | step \(\gamma\) in \(v\leftarrow v+\gamma(w_0+\lvert r\rvert^\beta)(n-n^*)\) |
+| `beta` | 1 | tail weight \(\beta\) |
+| `w0` | 1 | weight floor; `0` freezes \(v(0)\) (paper) |
+| `tol` | `1d-4` | stop when \(\int\lvert n-n^*\rvert <\) this |
+| `maxiter` | 40 | outer iterations |
+| `inner` | 40 | imag-time steps per outer iteration |
+| `tau` | 0.08 | imag-time step (implicit kinetic split) |
+| `scale` | 0.55 | scaled-trap guess |
+| `ncut` | `1d-3` | mask for \(v_s\) and the \(v\) RMS |
+| `check` | `.false.` | non-zero exit if the L1 error does not fall |
+| `ks_only` | `.false.` | skip interacting inversion; print \(v_s,v_H,v_c\) |
+| `density_file` | empty | target density if `target = 'file'` |
+
+**1e in 4D, not 2D-in-2D.** Two electrons in 2D physical space have a wave function \(\psi(x_1,y_1,x_2,y_2)\). That is a *single* Schrödinger equation in 4D configuration space: the Laplacian is 4D and \(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) is a local 4D potential. A CI in a 2D orbital basis (“2D in 2D”) needs two-electron integrals and is truncated. MRCPP has no `FunctionTree<4>`, so inversion uses a uniform grid. The inverted object remains the physical \(v_\mathrm{ext}(x,y)\); the 4D picture is only how the ground state is solved. The 1D helium model of the paper is the same idea with \(\psi(x_1,x_2)\) on an \(N\times N\) grid.
+
+After \(v_\mathrm{ext}\) is found, the two-electron singlet KS inversion is algebraic, \(\varphi=\sqrt{n/2}\), \(v_s=(2\varphi)^{-1}\nabla^2\varphi+\mathrm{const}\), and \(v_c=v_s-\tfrac12 v_H-v_\mathrm{ext}\).
+
+```bash
+./build/bin/tdse examples/invert_2e1d.in
+./build/bin/tdse examples/invert_2e2d.in
+python3 examples/plot_inversion.py invert_2e1d_observables.csv
+```
 
 Laser field must be off (`E0 = 0`). For several HO states, use a **non-even** trial (`x0 ≠ 0`); an even Gaussian has no overlap with odd eigenfunctions.
 
@@ -435,6 +467,9 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `ground_atom.in` | 1D soft-Coulomb ground | residual only |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | exact 1D 2e ground | residual only |
+| `invert_smoke.in` | 2e-1D inversion ctest | L1 of \(n\) falls |
+| `invert_2e1d.in` | TGK08 1D helium inversion | recover \(v_\mathrm{ext}\) |
+| `invert_2e2d.in` | 2e in 2D as 1e in 4D | recover \(v_\mathrm{ext}(x,y)\) |
 
 Demo inputs use a coarse grid so they finish quickly. For stationary energies set `kinetic = 'bs'` and lower `prec` to `1d-5`–`1d-6` (see `ground_1d_precise.in`). For real-time work, also shrink `dt`.
 
@@ -460,7 +495,8 @@ Demo inputs use a coarse grid so they finish quickly. For stationary energies se
 
 ## 12. Limits
 
-- MRCPP instantiates `FunctionTree<D>` only for \(D=1,2,3\). Four-electron exact N-body is not possible; use `mode = 'orbital'`.
+- MRCPP instantiates `FunctionTree<D>` only for \(D=1,2,3\). Four-electron exact N-body is not possible; use `mode = 'orbital'`. Two electrons in 2D (`calculation = 'invert'`) use a uniform 4D grid, not a multiwavelet tree.
+- Inversion is accurate only where the density is not tiny (TGK08: treat \(n\gtrsim 10^{-2}\) as safe). The additive constant in \(v_\mathrm{ext}\) is fixed by matching at the density peak.
 - `TimeEvolutionOperator` is 1D Legendre only (`τ = Δt/2` because the library stores \(\exp(i\tau\partial_x^2)=\exp(-i T\Delta t)\)).
 - Contact \(\lambda\rho\) is not a Coulomb Hartree potential.
 - MPI cannot domain-decompose a single tree.

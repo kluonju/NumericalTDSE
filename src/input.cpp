@@ -51,11 +51,14 @@ std::string canonical_section(std::string name) {
     if (name == "GROUND" || name == "GS" || name == "EIGENSTATE" || name == "EIGENSTATES" || name == "SCF") {
         return "EIGEN";
     }
+    if (name == "DFT" || name == "PEIRS" || name == "TGK" || name == "TGK08" || name == "INVERSION") {
+        return "INVERT";
+    }
     return name;
 }
 
 const std::unordered_set<std::string> kKnownSections = {
-        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT", "PARALLEL", "EIGEN"};
+        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT", "PARALLEL", "EIGEN", "INVERT"};
 
 bool is_ident_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
 
@@ -279,8 +282,11 @@ void set_calculation(Parameters &p, const std::string &raw, const std::string &o
     } else if (s == "eigen" || s == "eigenstate" || s == "eigenstates" || s == "stationary") {
         p.job = JobKind::Eigen;
         p.smoke = false;
+    } else if (s == "invert" || s == "inversion" || s == "tgk" || s == "tgk08" || s == "peirs") {
+        p.job = JobKind::Invert;
+        p.smoke = false;
     } else {
-        throw std::invalid_argument(origin + ": calculation must be 'tdse', 'ground', 'eigen' or 'smoke'");
+        throw std::invalid_argument(origin + ": calculation must be 'tdse', 'ground', 'eigen', 'invert' or 'smoke'");
     }
 }
 
@@ -306,6 +312,102 @@ bool apply_eigen_keyword(Parameters &p, const std::string &key, const std::strin
     }
     if (key == "max_iter" || key == "maxiter" || key == "scf_iter") {
         p.eigen_maxiter = parse_int(value, origin);
+        return true;
+    }
+    return false;
+}
+
+void set_invert_target(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    if (s == "self" || s == "roundtrip" || s == "trap") {
+        p.invert_target = InvertTarget::Self;
+    } else if (s == "file" || s == "density" || s == "from_file") {
+        p.invert_target = InvertTarget::File;
+    } else {
+        throw std::invalid_argument(origin + ": invert target must be 'self' or 'file'");
+    }
+}
+
+void set_invert_guess(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    if (s == "scaled" || s == "scale") {
+        p.invert_guess = InvertGuess::Scaled;
+    } else if (s == "harmonic" || s == "ho") {
+        p.invert_guess = InvertGuess::Harmonic;
+    } else if (s == "zero" || s == "none") {
+        p.invert_guess = InvertGuess::Zero;
+    } else if (s == "atom" || s == "soft" || s == "softatom") {
+        p.invert_guess = InvertGuess::Atom;
+    } else if (s == "hx" || s == "exx" || s == "xonly" || s == "ks") {
+        p.invert_guess = InvertGuess::Hx;
+    } else {
+        throw std::invalid_argument(origin + ": invert guess must be 'scaled', 'harmonic', 'zero', 'atom' or 'hx'");
+    }
+}
+
+bool apply_invert_keyword(Parameters &p, const std::string &key, const std::string &value, const std::string &origin) {
+    if (key == "target" || key == "invert_target") {
+        set_invert_target(p, value, origin);
+        return true;
+    }
+    if (key == "guess" || key == "invert_guess" || key == "v0") {
+        set_invert_guess(p, value, origin);
+        return true;
+    }
+    if (key == "n_grid" || key == "ngrid" || key == "npts") {
+        p.n_grid = parse_int(value, origin);
+        return true;
+    }
+    if (key == "gamma" || key == "invert_gamma") {
+        p.invert_gamma = parse_double(value, origin);
+        return true;
+    }
+    if (key == "beta" || key == "invert_beta") {
+        p.invert_beta = parse_double(value, origin);
+        return true;
+    }
+    if (key == "w0" || key == "invert_w0") {
+        p.invert_w0 = parse_double(value, origin);
+        return true;
+    }
+    if (key == "tol" || key == "density_tol" || key == "invert_tol") {
+        p.invert_tol = parse_double(value, origin);
+        return true;
+    }
+    if (key == "maxiter" || key == "max_iter" || key == "invert_maxiter") {
+        p.invert_maxiter = parse_int(value, origin);
+        return true;
+    }
+    if (key == "inner" || key == "invert_inner" || key == "itp_steps") {
+        p.invert_inner = parse_int(value, origin);
+        return true;
+    }
+    if (key == "tau" || key == "invert_tau") {
+        p.invert_tau = parse_double(value, origin);
+        return true;
+    }
+    if (key == "ncut" || key == "n_cut" || key == "invert_ncut") {
+        p.invert_ncut = parse_double(value, origin);
+        return true;
+    }
+    if (key == "scale" || key == "invert_scale") {
+        p.invert_scale = parse_double(value, origin);
+        return true;
+    }
+    if (key == "dvmax" || key == "invert_dvmax") {
+        p.invert_dvmax = parse_double(value, origin);
+        return true;
+    }
+    if (key == "check" || key == "invert_check") {
+        p.invert_check = parse_bool(value, origin);
+        return true;
+    }
+    if (key == "ks_only" || key == "invert_ks_only") {
+        p.invert_ks_only = parse_bool(value, origin);
+        return true;
+    }
+    if (key == "density_file" || key == "nfile" || key == "file") {
+        p.invert_density_file = unquote(value);
         return true;
     }
     return false;
@@ -369,6 +471,8 @@ void apply_namelist_assignment(Parameters &p,
             p.nthreads = parse_int(value, origin);
         } else if (apply_eigen_keyword(p, key, value, origin)) {
             return;
+        } else if (apply_invert_keyword(p, key, value, origin)) {
+            return;
         } else {
             unknown();
         }
@@ -391,6 +495,13 @@ void apply_namelist_assignment(Parameters &p,
         return;
     }
 
+    if (section == "INVERT") {
+        if (!apply_invert_keyword(p, key, value, origin)) {
+            unknown();
+        }
+        return;
+    }
+
     if (section == "MRA") {
         if (key == "prec" || key == "precision") {
             p.prec = parse_double(value, origin);
@@ -402,6 +513,8 @@ void apply_namelist_assignment(Parameters &p,
             p.L = parse_double(value, origin);
         } else if (key == "basis") {
             set_basis(p, value, origin);
+        } else if (key == "n_grid" || key == "ngrid" || key == "npts") {
+            p.n_grid = parse_int(value, origin);
         } else if (key == "legendre") {
             p.use_legendre = parse_bool(value, origin);
         } else {
@@ -579,10 +692,12 @@ void finalize_parameters(Parameters &p) {
             p.n_states = 1;
         }
     }
-    if (is_stationary(p)) {
+    if (is_stationary(p) || is_invert(p)) {
         if (p.E0 != 0.0) {
-            throw std::invalid_argument("ground/eigen calculations require LASER E0 = 0");
+            throw std::invalid_argument("ground/eigen/invert calculations require LASER E0 = 0");
         }
+    }
+    if (is_stationary(p)) {
         if (p.n_states < 1 || p.n_states > 12) {
             throw std::invalid_argument("EIGEN n_states must be 1..12");
         }
@@ -596,6 +711,41 @@ void finalize_parameters(Parameters &p) {
             }
         }
     }
+    if (is_invert(p)) {
+        if (p.n_electrons != 2) {
+            throw std::invalid_argument("invert requires SYSTEM electrons = 2");
+        }
+        if (p.spatial_dim != 1 && p.spatial_dim != 2) {
+            throw std::invalid_argument("invert supports dim = 1 (TGK08 1D helium) or dim = 2 (4D config space)");
+        }
+        if (p.n_grid == 0) {
+            p.n_grid = (p.spatial_dim == 1) ? 49 : 15;
+        }
+        if (p.n_grid < 9) {
+            throw std::invalid_argument("INVERT n_grid must be >= 9");
+        }
+        if (p.n_grid % 2 == 0) {
+            ++p.n_grid;
+        }
+        if (p.invert_gamma <= 0.0) {
+            throw std::invalid_argument("INVERT gamma must be > 0");
+        }
+        if (p.invert_maxiter < 1) {
+            throw std::invalid_argument("INVERT maxiter must be >= 1");
+        }
+        if (p.invert_inner < 1) {
+            throw std::invalid_argument("INVERT inner must be >= 1");
+        }
+        if (p.invert_tau <= 0.0) {
+            throw std::invalid_argument("INVERT tau must be > 0");
+        }
+        if (p.invert_target == InvertTarget::File && p.invert_density_file.empty()) {
+            throw std::invalid_argument("INVERT target = 'file' requires density_file");
+        }
+        if (p.invert_guess == InvertGuess::Scaled && p.invert_target == InvertTarget::File) {
+            p.invert_guess = InvertGuess::Harmonic;
+        }
+    }
     if (!p.prefix.empty() && !p.output_explicit) {
         p.output = p.prefix + "_observables.csv";
     }
@@ -605,7 +755,7 @@ void finalize_parameters(Parameters &p) {
     if (p.n_electrons < 1 || p.n_electrons > 4) {
         throw std::invalid_argument("SYSTEM electrons must be 1..4");
     }
-    if (p.representation == Representation::Exact) {
+    if (p.representation == Representation::Exact && !is_invert(p)) {
         const int D = mra_dimension(p);
         if (D > 3) {
             throw std::invalid_argument(
@@ -634,7 +784,7 @@ void write_input_template(std::ostream &os) {
 ! Booleans: .true. / .false.   Strings: 'quoted' or unquoted.
 
 &CONTROL
-  calculation   = 'tdse'          ! 'tdse' | 'ground' | 'eigen' | 'smoke'
+  calculation   = 'tdse'          ! 'tdse' | 'ground' | 'eigen' | 'invert' | 'smoke'
   title         = 'job'
   prefix        = 'job'           ! default output = prefix_observables.csv
   printlevel    = 0
@@ -704,6 +854,21 @@ void write_input_template(std::ostream &os) {
   conv_thr   = 1.0d-6             ! ITP/SCF |ΔE| threshold
   residual   = 0.0                ! ||(H-E)ψ||; 0 → 50*prec
   max_iter   = 80
+/
+
+&INVERT
+  target     = 'self'             ! 'self' (round-trip) | 'file'
+  guess      = 'scaled'           ! 'scaled' | 'harmonic' | 'zero' | 'atom' | 'hx'
+  n_grid     = 0                  ! 0 → 49 (1D) or 15 (2D); forced odd
+  gamma      = 0.25               ! TGK08 step: v += γ (w0+|r|^β) (n-n*)
+  beta       = 1.0
+  w0         = 1.0                ! 0 freezes v(0) as in the paper
+  tol        = 1.0d-4             ! ∫|n-n*|
+  maxiter    = 40
+  inner      = 40                 ! imag-time steps per outer iteration
+  tau        = 0.08
+  scale      = 0.55               ! scaled-trap guess
+  check      = .false.
 /
 )INP";
 }

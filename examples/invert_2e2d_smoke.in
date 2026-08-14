@@ -1,0 +1,38 @@
+! 2 electrons in 2D as 1 particle in 4D configuration space (N^4 grid).
+! Tiny run for ctest; not a converged potential.
+&CONTROL
+  calculation = 'invert'
+  title       = '2e-2D / 4D-config inversion smoke'
+  prefix      = 'invert_2e2d_smoke'
+  ident_check = .false.
+/
+
+&MRA
+  L = 4.0
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 2
+  trap      = 'harmonic'
+  omega     = 1.0
+  soft_a    = 1.0
+  ee        = .true.
+/
+
+&INITIAL
+  alpha = 1.0
+/
+
+&INVERT
+  target  = 'self'
+  guess   = 'scaled'
+  scale   = 0.6
+  n_grid  = 9
+  gamma   = 0.40
+  maxiter = 3
+  inner   = 12
+  tau     = 0.10
+  check   = .true.
+  tol     = 1.0d-3
+/

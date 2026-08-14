@@ -6,6 +6,7 @@
 
 #include "tdse/analytic.hpp"
 #include "tdse/eigen.hpp"
+#include "tdse/invert.hpp"
 #include "tdse/observables.hpp"
 #include "tdse/operators.hpp"
 #include "tdse/parameters.hpp"
@@ -327,6 +328,9 @@ int simulate_orbitals(const Parameters &p) {
 
 inline int run(const Parameters &p) {
     print_parameters(p);
+    if (is_invert(p)) {
+        return run_invert(p);
+    }
     if (is_stationary(p)) {
         return run_stationary(p);
     }

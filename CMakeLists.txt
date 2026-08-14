@@ -151,6 +151,20 @@ set_tests_properties(tdse_itp_smoke PROPERTIES
     TIMEOUT 300
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+add_test(NAME tdse_invert_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/invert_smoke.in
+)
+set_tests_properties(tdse_invert_smoke PROPERTIES
+    TIMEOUT 180
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME tdse_invert_2e2d_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/invert_2e2d_smoke.in
+)
+set_tests_properties(tdse_invert_2e2d_smoke PROPERTIES
+    TIMEOUT 180
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 if(NUMTDSE_MPI AND MPI_CXX_FOUND AND MPIEXEC_EXECUTABLE)
     set(_numtdse_mpi_preflags)
