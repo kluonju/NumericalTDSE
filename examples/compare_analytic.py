@@ -112,6 +112,7 @@ def compare_tdse(path, rows, args) -> int:
     print(f"file: {path}")
     print(f"  steps: {len(rows)}")
     status = 0
+    relaxing = bool(ov) and ov[-1] > ov[0] + 1.0e-4
     if dmu:
         print(f"  |μ − μ_ana|  max={max(dmu):.3e}  rms={rms(dmu):.3e}")
         if args.tol_dipole is not None and max(dmu) > args.tol_dipole:
@@ -120,16 +121,18 @@ def compare_tdse(path, rows, args) -> int:
     else:
         print("  no analytic dipole column")
     if dE:
-        print(f"  |E − E_ana|  max={max(dE):.3e}  rms={rms(dE):.3e}")
-        if args.tol_energy is not None and max(dE) > args.tol_energy:
-            print(f"  FAIL energy max error > {args.tol_energy}", file=sys.stderr)
+        print(f"  |E − E_ana|  max={max(dE):.3e}  rms={rms(dE):.3e}  last={dE[-1]:.3e}")
+        e_chk = dE[-1] if relaxing else max(dE)
+        if args.tol_energy is not None and e_chk > args.tol_energy:
+            print(f"  FAIL energy {'last' if relaxing else 'max'} error > {args.tol_energy}", file=sys.stderr)
             status = 1
     else:
         print("  no analytic energy column")
     if ov:
         print(f"  |⟨num|ana⟩|  min={min(ov):.12f}  last={ov[-1]:.12f}")
-        if args.tol_overlap is not None and min(ov) < args.tol_overlap:
-            print(f"  FAIL overlap min < {args.tol_overlap}", file=sys.stderr)
+        o_chk = ov[-1] if relaxing else min(ov)
+        if args.tol_overlap is not None and o_chk < args.tol_overlap:
+            print(f"  FAIL overlap {'last' if relaxing else 'min'} < {args.tol_overlap}", file=sys.stderr)
             status = 1
     else:
         print("  no wave-function overlap (enable validate_free / validate_ho, or a HO eigen job)")

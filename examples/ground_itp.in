@@ -1,6 +1,7 @@
 ! Imaginary-time relaxation onto the 1D HO ground state.
+! Strang ITP: exp(-Vτ/2) exp(-Tτ) exp(-Vτ/2) with the heat kernel exp((τ/2)∇²).
 ! CSV is E(τ) vs E_ana = 1/2 (same columns as a TDSE run).
-! 虚时传播求基态。CSV 是 E(τ) 对照 1/2。
+! 虚时传播求基态（热核动能）。CSV 是 E(τ) 对照 1/2。
 &CONTROL
   calculation = 'ground'
   title       = '1D HO ground state by imaginary time'

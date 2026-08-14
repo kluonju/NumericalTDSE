@@ -17,6 +17,7 @@
 
 #include "MRCPP/MWFunctions"
 #include "MRCPP/MWOperators"
+#include "operators/HeatOperator.h"
 
 #include <cmath>
 #include <functional>
@@ -158,6 +159,17 @@ void apply_potential_damp(double prec, CplxFun<D> &psi, mrcpp::FunctionTree<D> &
     mrcpp::FunctionTree<D> im_new(V.getMRA());
     mrcpp::multiply(prec, re_new, 1.0, eV, psi.re);
     mrcpp::multiply(prec, im_new, 1.0, eV, psi.im);
+    copy_into(psi.re, re_new);
+    copy_into(psi.im, im_new);
+}
+
+/** ψ ← exp(−T τ) ψ = exp((τ/2) ∇²) ψ via the MRCPP heat kernel (smoothing). */
+template <int D>
+void apply_heat_kinetic(double prec, CplxFun<D> &psi, mrcpp::HeatOperator<D> &heat) {
+    mrcpp::FunctionTree<D> re_new(psi.mra);
+    mrcpp::FunctionTree<D> im_new(psi.mra);
+    mrcpp::apply(prec, re_new, heat, psi.re);
+    mrcpp::apply(prec, im_new, heat, psi.im);
     copy_into(psi.re, re_new);
     copy_into(psi.im, im_new);
 }

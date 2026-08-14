@@ -247,10 +247,15 @@ void step_split_imag(double prec,
                      CplxFun<D> &psi,
                      OperatorSet<D> &ops,
                      mrcpp::FunctionTree<D> &V,
-                     double dt) {
+                     double dt,
+                     mrcpp::HeatOperator<D> *heat = nullptr) {
     apply_potential_damp(prec, psi, V, 0.5 * dt);
-    ApplyOp<D> T = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_kinetic_cplx(prec, out, ops, in); };
-    expm_krylov(prec, psi, T, dt, ops.p.krylov_dim, TimeKind::Imag, energy_floor(ops.p));
+    if (heat != nullptr) {
+        apply_heat_kinetic(prec, psi, *heat);
+    } else {
+        ApplyOp<D> T = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_kinetic_cplx(prec, out, ops, in); };
+        expm_krylov(prec, psi, T, dt, ops.p.krylov_dim, TimeKind::Imag, energy_floor(ops.p));
+    }
     apply_potential_damp(prec, psi, V, 0.5 * dt);
 }
 

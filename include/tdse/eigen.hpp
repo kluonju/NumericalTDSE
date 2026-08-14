@@ -9,8 +9,10 @@
  *             operator is not bounded below). Excited states use a
  *             nodal/Hermite guess plus a few imaginary-time RK4 steps in
  *             the orthogonal complement.
- *   ITP     — imaginary-time filter ∂τψ = −Hψ with Gram–Schmidt.
- *             Krylov exp(−Hτ) zeros Ritz values below energy_floor.
+ *   ITP     — Strang imag-time: exp(−Vτ/2) exp(−Tτ) exp(−Vτ/2) with the
+ *             MRCPP heat kernel exp((τ/2)∇²) (smoothing). Gram–Schmidt
+ *             for excited states. Krylov/RK4 of the MW Hamiltonian is
+ *             not used: that operator is unbounded below.
  *
  * Nonlinear orbitals (λ ρ ≠ 0): SCF with an inner Lanczos, or orbital ITP.
  */
@@ -397,6 +399,11 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
                                      int n_states,
                                      std::ostream *history) {
     const int nsteps = std::max(1, std::min(p.eigen_maxiter, static_cast<int>(std::llround(p.T / p.dt))));
+    if (p.dt <= 0.0) {
+        throw std::invalid_argument("ITP requires dt > 0");
+    }
+    mrcpp::print::header(0, "Building HeatOperator exp((Δτ/2) ∇²) = exp(−T Δτ)");
+    mrcpp::HeatOperator<D> heat(ops.mra, 0.5 * p.dt, prec);
     std::vector<std::unique_ptr<CplxFun<D>>> found;
     std::vector<EigenPair<D>> out;
 
@@ -413,9 +420,10 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
         CplxFun<D> best(ops.mra);
         copy_into(best, *psi);
         double E_best = energy_expectation(prec, *psi, ops, V);
+        const double floor = energy_floor(p);
         for (int s = 0; s < nsteps; ++s) {
             orthogonalize(prec, *psi, prev);
-            step_imaginary(prec, *psi, ops, V, p);
+            step_split_imag(prec, *psi, ops, V, p.dt, &heat);
             crop(*psi, prec);
             if (norm(*psi) < 1.0e-18) {
                 throw std::runtime_error("imaginary-time step collapsed the wave function; decrease dt");
@@ -428,11 +436,11 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
             const double res = hamiltonian_residual(prec, *psi, ops, V, E);
             ++used;
 
-            if (std::isfinite(E) && E < E_best) {
+            if (std::isfinite(E) && E >= floor && E < E_best) {
                 E_best = E;
                 copy_into(best, *psi);
             }
-            const bool diverged = !std::isfinite(E) || E > E_best + 2.0 || res > 50.0;
+            const bool diverged = !std::isfinite(E) || E < floor || res > 50.0;
             if (diverged) {
                 println(0, "  ITP n=" << k << " diverged at step " << (s + 1) << "; restoring lowest energy");
                 copy_into(*psi, best);
@@ -701,6 +709,14 @@ int simulate_stationary_orbitals(const Parameters &p) {
     std::vector<EigenPair<D>> pairs;
     const int nscf = (p.lambda_contact == 0.0 && p.eigen_method == EigenMethod::Lanczos) ? 1 : p.eigen_maxiter;
     double E_prev = 0.0;
+    std::unique_ptr<mrcpp::HeatOperator<D>> heat;
+    if (p.eigen_method == EigenMethod::Itp) {
+        if (p.dt <= 0.0) {
+            throw std::invalid_argument("ITP requires dt > 0");
+        }
+        mrcpp::print::header(0, "Building HeatOperator exp((Δτ/2) ∇²) = exp(−T Δτ)");
+        heat = std::make_unique<mrcpp::HeatOperator<D>>(MRA, 0.5 * p.dt, p.prec);
+    }
 
     for (int it = 0; it < nscf; ++it) {
         auto V = orbital_potential(MRA, p, *Vext, orbs);
@@ -710,14 +726,13 @@ int simulate_stationary_orbitals(const Parameters &p) {
                 copy_into(*orbs[static_cast<std::size_t>(i)], *pairs[static_cast<std::size_t>(i)].psi);
             }
         } else {
-            auto prev_all = as_ptrs(orbs);
             for (int i = 0; i < n; ++i) {
                 std::vector<CplxFun<D> *> lower;
                 for (int j = 0; j < i; ++j) {
                     lower.push_back(orbs[static_cast<std::size_t>(j)].get());
                 }
                 orthogonalize(p.prec, *orbs[static_cast<std::size_t>(i)], lower);
-                step_imaginary(p.prec, *orbs[static_cast<std::size_t>(i)], ops, *V, p);
+                step_split_imag(p.prec, *orbs[static_cast<std::size_t>(i)], ops, *V, p.dt, heat.get());
                 crop(*orbs[static_cast<std::size_t>(i)], p.prec);
                 normalize(*orbs[static_cast<std::size_t>(i)]);
                 orthogonalize(p.prec, *orbs[static_cast<std::size_t>(i)], lower);

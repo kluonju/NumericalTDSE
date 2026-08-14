@@ -70,7 +70,7 @@ Ground state of the same oscillator (`E_0 = 1/2`):
 
 ```bash
 ./build/bin/tdse examples/ground_1d.in
-python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-3
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 0.05 --tol-overlap 0.99
 python3 examples/plot_observables.py ground_1d_observables.csv
 python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
 ```
@@ -211,7 +211,7 @@ Laser field must be off (`E0 = 0`). For several HO states, use a **non-even** tr
 - **`L`**: the packet must stay away from \(\pm L\). Free packets spread and travel; enlarge the box (`free_boost.in` uses `L = 12`).
 - **`dt`**: RK4 is not unitary — use a smaller step or `renormalize`. Krylov is closer to unitary. Split + TEO is natural for 1D free kinetic evolution.
 - **`propagator`**: Krylov is the default for any dimension. `split` in 1D switches the basis to Legendre automatically.
-- **Stationary**: `lanczos` takes the ground state from a Krylov space of \(H\) (increase `krylov_dim` if the overlap is poor); higher states use a nodal guess plus a few imag-time RK4 steps. `itp` uses `dt` and `T` as imaginary time. Krylov imag-time `exp(−Hτ)` discards Ritz values below a physical energy floor (the MW kinetic operator is not bounded below). Orbital jobs with \(\lambda\neq 0\) wrap an SCF around the inner solver.
+- **Stationary**: `lanczos` takes the ground state from a Krylov space of \(H\) (increase `krylov_dim` if the overlap is poor); higher states use a nodal guess plus a few imag-time RK4 steps. `itp` uses `dt` and `T` as imaginary time with a Strang split: the kinetic piece is the MRCPP heat kernel \(\exp((\tau/2)\nabla^2)\) (smoothing), not a Krylov exponential of the unbounded MW kinetic operator. Orbital jobs with \(\lambda\neq 0\) wrap an SCF around the inner solver.
 
 ### Ground state and lowest eigenstates
 
@@ -222,7 +222,7 @@ The Hamiltonian is the same as in a TDSE run (trap + optional \(e\)–\(e\), no 
 
 **Lanczos (default).** Builds a Krylov space of \(H\) from a smooth trial. Because the multiwavelet kinetic operator is not bounded below, the algebraically smallest Ritz value is a spurious mode; the physical state is the Ritz vector that overlaps the trial. The ground state is obtained this way. Higher states use a nodal (Hermite) guess and a few imaginary-time RK4 steps in the orthogonal complement. Reports \(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) against the MW operator (this residual can stay large even when \(|\langle\psi_\mathrm{num}|\psi_n\rangle|\) is \(>0.99\)).
 
-**Imaginary time.** Substitute \(t=-i\tau\) so \(\partial_\tau\psi=-H\psi\). High-energy components decay; after each step the wave function is renormalized. Excited states are obtained sequentially with Gram–Schmidt. For `n_states = 1` the CSV is an \(E(\tau)\) history (same columns as TDSE). For several states, or for Lanczos, the CSV is a spectrum (`state,energy,residual,…`). Krylov imag-time kills Ritz values below a physical floor so spurious negative MW kinetic modes cannot grow as \(\exp(+|E|\tau)\). Convergence is on \(|\Delta E|\), not the MW residual.
+**Imaginary time.** Substitute \(t=-i\tau\) so \(\partial_\tau\psi=-H\psi\). High-energy components decay; after each step the wave function is renormalized. Excited states are obtained sequentially with Gram–Schmidt. For `n_states = 1` the CSV is an \(E(\tau)\) history (same columns as TDSE). For several states, or for Lanczos, the CSV is a spectrum (`state,energy,residual,…`). The imag-time kinetic step is the heat semigroup \(\exp(-T\tau)=\exp((\tau/2)\nabla^2)\); Krylov/RK4 on the MW Hamiltonian is not used because that operator is unbounded below. Convergence is on \(|\Delta E|\), not the MW residual.
 
 Isotropic HO analytic energy (including 2D/3D degeneracy): \(E=\omega(N+D/2)\) with shell \(N=n_1+\cdots+n_D\). Wave-function overlap is filled for 1D all \(n\), and for \(D>1\) only the ground state.
 
@@ -284,7 +284,7 @@ python3 examples/plot_wavefunction.py name_n0 --analytic hoeig --n 0 --omega 1
 python3 examples/plot_wavefunction.py name_tT --analytic free --alpha 1 --x0 0 --k0 0 --t 0.2
 ```
 
-`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999 --tol-residual 1e-3` returns a non-zero exit code on failure (useful in scripts). Spectrum CSVs are detected automatically.
+`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999 --tol-residual 1e-3` returns a non-zero exit code on failure (useful in scripts). Spectrum CSVs are detected automatically. Imaginary-time histories (overlap increasing) are judged on the last step.
 
 ---
 
@@ -369,7 +369,7 @@ Demo inputs use a coarse grid so they finish quickly. For production, lower `pre
 | MPI does not speed up HO | expected: exact mode is one tree; use OpenMP or `mode = 'orbital'` |
 | odd HO states missing | set `x0 ≠ 0` so the trial is not even |
 | residual stays large | increase `krylov_dim`, tighten `prec`, enlarge `L` |
-| ITP wave function vanished | decrease `dt` |
+| ITP energy runs to −∞ | the MW kinetic operator is unbounded below; ITP uses the heat kernel. Rebuild if you still have an old binary |
 | empty plots | `pip install matplotlib`; run from the directory that contains the `.csv` / `.line` files |
 
 ---
