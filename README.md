@@ -6,6 +6,78 @@ The code represents wave functions as `FunctionTree` objects on a `MultiResoluti
 
 ---
 
+## 设计总览
+
+One executable `tdse`, one `Parameters` object, two run modes, three propagators. MRCPP owns the adaptive grid; this code owns the TDSE, input, and time loop.
+
+```mermaid
+mindmap
+  root((NumericalTDSE))
+    Physics
+      TDSE a.u.
+      H equals T plus V
+      T is minus one-half Laplacian
+      V trap plus dipole laser
+      Traps HO free soft-atom
+      Init displaced Gaussian
+    Representation
+      Exact N-body tree
+        1D electrons N at most 3
+        FunctionTree of dim N
+        Soft Coulomb
+        Optional fermion 2e
+      Orbital mean field
+        Up to 4 orbitals
+        Each FunctionTree of dim
+        Optional contact lambda rho
+    MRA MRCPP
+      Box minus L to L
+      Order k and max_depth
+      Adaptive prec
+      Interp or Legendre
+      Complex psi as Re Im trees
+    Operators
+      Kinetic ABGV BS DConv
+      Potential project and multiply
+      IdentityConvolution check
+      TEO 1D Legendre split
+    Propagators
+      Krylov SIL default
+      Strang split
+      RK4
+    Parallel
+      OpenMP inside each tree
+      MPI orbitals round-robin
+      Rank 0 I/O
+      Exact MPI does not split tree
+    Input I/O
+      QE namelist job.in
+      Sections CONTROL MRA TIME
+      SYSTEM INITIAL LASER OUTPUT PARALLEL
+      CSV observables
+      Optional 1D plots
+```
+
+Run path:
+
+```mermaid
+flowchart LR
+  A["job.in / --smoke / --template"] --> B["parse_cli + namelist"]
+  B --> C["Parameters"]
+  C --> D["parallel::init threads"]
+  D --> E["run"]
+  E --> F["exact: one FunctionTree"]
+  E --> G["orbital: N FunctionTrees"]
+  F --> H["project psi and V"]
+  G --> H
+  H --> I["Krylov / Split / RK4"]
+  I --> J["norm dipole energy CSV"]
+```
+
+Module map: `main` → `input` / `parameters` / `parallel` → `simulate` → `analytic` + `operators` + `propagator` + `observables` + `wavefunction`, all sitting on MRCPP `FunctionTree` / `MultiResolutionAnalysis`.
+
+---
+
 ## 物理与算法
 
 原子单位下的 TDSE：
