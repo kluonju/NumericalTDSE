@@ -1,0 +1,27 @@
+! Two non-interacting 1D HO orbitals (λ = 0): ε_0 = 1/2, ε_1 = 3/2.
+! 两个无相互作用谐振子轨道。
+&CONTROL
+  calculation = 'ground'
+  title       = 'two HO orbitals (λ = 0)'
+  prefix      = 'orbitals_ground'
+  ident_check = .false.
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  omega     = 1.0
+  lambda    = 0.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.7
+/
+
+&EIGEN
+  n_states = 2
+  method   = 'lanczos'
+/

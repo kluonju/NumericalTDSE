@@ -1,0 +1,38 @@
+! 1D harmonic-oscillator ground state (Lanczos / Ritz).
+! Analytic: E_0 = ω/2 = 0.5,  ψ_0 ∝ exp(−ω x² / 2),  ⟨x⟩ = 0.
+! 一维谐振子基态。解析：E = 1/2，偶宇称高斯。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D HO ground state vs ψ_0'
+  prefix      = 'ground_1d'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-4
+  order = 7
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 12
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.4
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
+
+&OUTPUT
+  plot = 'ground_1d'
+/

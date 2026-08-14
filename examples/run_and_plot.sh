@@ -37,10 +37,14 @@ PLOT="$(awk -F= '
   }
 ' "$IN" | tail -1)"
 if [[ -n "${PLOT}" ]]; then
-    for tag in t0 tT; do
+    for tag in t0 tT n0 n1 n2 n3 n4 n5 n6 n7; do
         if [[ -f "${PLOT}_${tag}_re.line" || -f "${PLOT}_${tag}_re" ]]; then
+            extra=()
+            if [[ "$tag" == n* ]]; then
+                extra=(--analytic hoeig --n "${tag#n}")
+            fi
             python3 "${ROOT}/examples/plot_wavefunction.py" "${PLOT}_${tag}" \
-                -o "${PLOT}_${tag}_psi.png" || true
+                -o "${PLOT}_${tag}_psi.png" "${extra[@]+"${extra[@]}"}" || true
         fi
     done
 fi

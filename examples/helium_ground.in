@@ -1,0 +1,39 @@
+! Exact 1D two-electron (soft helium) ground state on FunctionTree<2>.
+! Heavier than the 1-body examples; no elementary analytic energy.
+! 精确一维双电子基态（D = 2 的树）。比单电子算例重，无初等解析能。
+&CONTROL
+  calculation = 'ground'
+  title       = 'exact 1D two-electron ground state'
+  prefix      = 'helium_ground'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-3
+  order = 5
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 8
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'atom'
+  Z         = 1.0
+  soft_a    = 1.0
+  fermion   = .false.
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.8
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/

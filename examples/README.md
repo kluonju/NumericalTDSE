@@ -26,7 +26,14 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `helium_1d.in` | exact 1D two-electron | 精确一维双电子 | none |
 | `orbitals_2e.in` | 2 orbitals + \(\lambda\rho\) | 两轨道平均场 | none; MPI ok |
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | 四轨道 | none; up to 4 ranks |
+| `ground_1d.in` | HO ground (Lanczos) | 谐振子基态 | \(E=0.5\), \(\psi_0\) |
+| `eigen_1d.in` | four lowest HO states | 最低四本征态 | \(E_n=n+1/2\) |
+| `ground_itp.in` | HO ground by ITP | 虚时基态 | \(E(\tau)\to 0.5\) |
+| `ground_atom.in` | 1D soft-Coulomb ground | 软库仑基态 | residual |
+| `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | 两轨道（无相互作用） | \(0.5, 1.5\) |
+| `helium_ground.in` | exact 1D 2e ground | 精确双电子基态 | residual |
 | `smoke.in` | ctest namelist | 短跑 | \(E\approx 0.625\) |
+| `ground_smoke.in` | Lanczos ctest | 基态短跑 | \(E=0.5\) |
 | `orbitals_smoke.in` | MPI ctest | MPI 短跑 | — |
 
 Tools: `plot_observables.py`, `plot_wavefunction.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.

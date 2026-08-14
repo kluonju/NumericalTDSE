@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from analytic_ref import free_gaussian, ho_coherent
+from analytic_ref import free_gaussian, ho_coherent, ho_eigen
 
 
 def load_line(path: Path):
@@ -53,7 +53,8 @@ def find_pair(prefix: str):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("files", nargs="*", help="re_file im_file, or a common prefix")
-    ap.add_argument("--analytic", choices=("none", "free", "ho"), default="none")
+    ap.add_argument("--analytic", choices=("none", "free", "ho", "hoeig"), default="none")
+    ap.add_argument("--n", type=int, default=0, help="HO eigenstate index for --analytic hoeig")
     ap.add_argument("--x0", type=float, default=1.0)
     ap.add_argument("--k0", type=float, default=0.0)
     ap.add_argument("--alpha", type=float, default=1.0)
@@ -97,6 +98,9 @@ def main() -> int:
     elif args.analytic == "ho":
         ana = [abs(ho_coherent(xi, args.x0, args.k0, args.omega, args.t)) ** 2 for xi in x]
         axes[1].plot(x, ana, "--", label=r"$|\psi|^2$ analytic")
+    elif args.analytic == "hoeig":
+        ana = [abs(ho_eigen(xi, args.n, args.omega)) ** 2 for xi in x]
+        axes[1].plot(x, ana, "--", label=rf"$|\psi_{args.n}|^2$ analytic")
     axes[1].set_ylabel(r"$|\psi|^2$")
     axes[1].set_xlabel("$x$ (a.u.)")
     axes[1].legend(frameon=False)

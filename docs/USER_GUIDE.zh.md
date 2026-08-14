@@ -26,6 +26,8 @@ i\,\partial_t\psi = \hat H(t)\,\psi,\qquad
 
 三种传播子：`krylov`（默认）、`split`（Strang）、`rk4`。
 
+定态计算（`calculation = 'ground'` 或 `'eigen'`）用 Lanczos/Ritz（默认）或虚时传播求同一 \(H\) 的最低本征态。
+
 ---
 
 ## 2. 编译
@@ -64,6 +66,17 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 也可以一步完成：`./examples/run_and_plot.sh examples/harmonic_1d.in`。
 
+同一谐振子的基态（\(E_0 = 1/2\)）：
+
+```bash
+./build/bin/tdse examples/ground_1d.in
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-3
+python3 examples/plot_observables.py ground_1d_observables.csv
+python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
+```
+
+最低四态（\(E_n = n + 1/2\)）：`./build/bin/tdse examples/eigen_1d.in`。
+
 这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
 
 - 偶极 \(\mu(t) = \cos(t)\)
@@ -93,14 +106,14 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 自由格式，Quantum ESPRESSO 风格：`&SECTION ... /`。只写要改的关键字，其余用默认。注释：`!` 或 `#`。实数：`1.0d-4`。逻辑：`.true.` / `.false.`。字符串：`'quoted'` 或裸词。
 
-段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  
-别名：`CTRL`；`GRID`/`NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION`/`PSI` → `INITIAL`；`FIELD` → `LASER`；`IO`/`OUT` → `OUTPUT`；`PARA`/`OMP` → `PARALLEL`。
+段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN`  
+别名：`CTRL`；`GRID`/`NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION`/`PSI` → `INITIAL`；`FIELD` → `LASER`；`IO`/`OUT` → `OUTPUT`；`PARA`/`OMP` → `PARALLEL`；`GROUND`/`GS`/`SCF` → `EIGEN`。
 
 ### `&CONTROL`
 
 | 关键字 | 默认 | 含义 |
 |---|---|---|
-| `calculation` | `'tdse'` | `'tdse'` 或 `'smoke'`（短跑预设，后面的关键字仍生效） |
+| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'smoke'`（`smoke` 是短跑预设，后面的关键字仍生效） |
 | `title` | 空 | 写进日志 |
 | `prefix` | 空 | 未写 `output=` 时观测文件为 `{prefix}_observables.csv` |
 | `printlevel` | 0 | MRCPP 详细程度 |
@@ -176,6 +189,20 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 |---|---|---|
 | `nthreads` | 0 | 每个 MPI rank 的 OpenMP 线程；0 → `OMP_NUM_THREADS` |
 
+### `&EIGEN`
+
+在 `calculation = 'ground'` 或 `'eigen'` 时使用。关键字也可写在 `&CONTROL` 里。
+
+| 关键字 | 默认 | 含义 |
+|---|---|---|
+| `n_states` | 1 / 4 | 最低本征态个数；`ground` 精确模式默认为 1，`eigen` 为 4，轨道模式为 `electrons` |
+| `method` | `'lanczos'` | `'lanczos'`（\(H\) 的 Ritz）或 `'itp'`（虚时 \(\mathrm{e}^{-H\tau}\)） |
+| `conv_thr` | `1d-6` | ITP / SCF：\(\lvert\Delta E\rvert\) 阈值 |
+| `residual` | `0` | \(\lVert(H-E)\psi\rVert\) 阈值；`0` → \(50\times\) `prec` |
+| `max_iter` | 80 | 虚时步数或 SCF 循环 |
+
+激光必须关闭（`E0 = 0`）。要求多个谐振子态时，初猜不要取偶函数（`x0 ≠ 0`），否则与奇宇称本征函数正交。
+
 ---
 
 ## 6. 如何选数值参数
@@ -184,6 +211,20 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 - **`L`**：波包不要碰到 \(\pm L\)。自由高斯会扩散、会飞走，盒子要加大（`free_boost.in` 用 `L = 12`）。
 - **`dt`**：RK4 不正交，步长宜小，或开 `renormalize`。Krylov 更接近幺正。1D 动能用 `split` + TEO 很自然。
 - **`propagator`**：任意维默认 Krylov。1D `split` 会自动改用 Legendre 基。
+- **定态**：`lanczos` 从 \(H\) 的 Krylov 空间取基态（重叠不够就加大 `krylov_dim`）；激发态用带节点的初猜再加几步虚时 RK4。`itp` 把 `dt`、`T` 当作虚时；若 `propagator = 'krylov'`，虚时改用 RK4 而不是 `exp(−Hτ)`。轨道模式且 \(\lambda\neq 0\) 时，外层再套一层 SCF。
+
+### 基态与最低本征态
+
+哈密顿量与 TDSE 相同（势阱 + 可选电子–电子，无激光）。
+
+- **`calculation = 'ground'`** — 最低态（若写了 `n_states` 则求最低若干态）。
+- **`calculation = 'eigen'`** — 若干最低态（精确模式默认 4 个）。
+
+**Lanczos（默认）。** 从光滑初猜建 \(H\) 的 Krylov 空间。多小波动能算子没有下界，代数上最小的 Ritz 值是虚假模；物理态是与初猜重叠最大的 Ritz 向量。基态这样求。更高的态用带节点的（Hermite）初猜，并在正交补里做几步虚时 RK4。\(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) 是对多小波算子的残差（即使 \(|\langle\psi_\mathrm{num}|\psi_n\rangle|>0.99\)，残差仍可能偏大）。
+
+**虚时。** 令 \(t=-i\tau\)，则 \(\partial_\tau\psi=-H\psi\)。高能成分衰减，每步归一化。激发态按顺序求，并用 Gram–Schmidt 正交。`n_states = 1` 时 CSV 是 \(E(\tau)\) 历史（列与 TDSE 相同）。多态或 Lanczos 写出谱文件（`state,energy,residual,…`）。若 `propagator = 'krylov'`，虚时改用 RK4：Krylov 的 `exp(−Hτ)` 会放大多小波动能里虚假的负能模。
+
+各向同性谐振子解析能（含 2D/3D 简并）：\(E=\omega(N+D/2)\)，壳层 \(N=n_1+\cdots+n_D\)。波函数重叠：一维对所有 \(n\) 填写，\(D>1\) 只填基态。
 
 ---
 
@@ -215,12 +256,18 @@ CSV 列：
 
 ```text
 t, norm, dipole, energy, nodes_re, nodes_im,
-overlap_analytic, dipole_analytic, energy_analytic
+overlap_analytic, dipole_analytic, energy_analytic, residual
 ```
 
-`dipole_analytic` / `energy_analytic` 在**单电子**、`mode = 'exact'`、势阱为 `harmonic` 或 `free` 时填写（能量还要求 `E0 = 0`）。`overlap_analytic` 在打开 `validate_free` 或 `validate_ho` 时填写。
+`dipole_analytic` / `energy_analytic` 在**单电子**、`mode = 'exact'`、势阱为 `harmonic` 或 `free` 时填写（能量还要求 `E0 = 0`）。`overlap_analytic` 在打开 `validate_free` 或 `validate_ho` 时填写。`residual` 用于虚时历史。
 
-一维图（`plot = 'name'`）：`name_t0_re.line`、`name_t0_im.line`、`name_tT_re.line`、`name_tT_im.line`（两列：\(x\) 与函数值）。
+Lanczos / 多态任务改为写**谱**：
+
+```text
+state, energy, residual, overlap_analytic, energy_analytic, norm, dipole, nodes_re, nodes_im
+```
+
+一维图（`plot = 'name'`）：TDSE 用 `name_t0_*`、`name_tT_*`；本征态用 `name_n0_*`、`name_n1_*`、…（两列：\(x\) 与函数值）。
 
 ---
 
@@ -233,10 +280,11 @@ python3 examples/analytic_ref.py              # 公式自检
 python3 examples/compare_analytic.py run.csv  # |μ−μ_ana|、|E−E_ana| 的 RMS，以及最小重叠
 python3 examples/plot_observables.py run.csv -o obs.png
 python3 examples/plot_wavefunction.py name_t0 --analytic ho --x0 1 --omega 1 --t 0
+python3 examples/plot_wavefunction.py name_n0 --analytic hoeig --n 0 --omega 1
 python3 examples/plot_wavefunction.py name_tT --analytic free --alpha 1 --x0 0 --k0 0 --t 0.2
 ```
 
-`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999` 超差时返回非零退出码，便于脚本检查。
+`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999 --tol-residual 1e-3` 超差时返回非零退出码，便于脚本检查。谱 CSV 会自动识别。
 
 ---
 
@@ -255,6 +303,16 @@ E=\frac{D}{4}\Big(\alpha+\frac{\omega^2}{\alpha}\Big)+\tfrac12\omega^2 x_0^2+\tf
 \]
 
 若 \(\alpha=\omega\) 则是相干态，`validate_ho` 还会给出 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\)。
+
+**谐振子本征态**（定态计算）
+
+\[
+E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
+\psi_n(x)=\frac{1}{\sqrt{2^n n!}}\Bigl(\frac{\omega}{\pi}\Bigr)^{1/4}
+\mathrm{e}^{-\omega x^2/2}\,H_n(\sqrt{\omega}\,x)
+\]
+
+\(D\) 维时第 \(k\) 个最低能级用直角坐标壳层 \(N=n_1+\cdots+n_D\)，\(E=\omega(N+D/2)\)。
 
 **自由粒子**
 
@@ -287,6 +345,13 @@ E=\frac{D}{4}\Big(\alpha+\frac{\omega^2}{\alpha}\Big)+\tfrac12\omega^2 x_0^2+\tf
 | `orbitals_2e.in` | 两轨道 + \(\lambda\rho\) | 无；适合 MPI |
 | `orbitals_4e.in` | 四轨道 + \(\lambda\rho\) | 无；最多 4 个 MPI rank |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
+| `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
+| `ground_1d.in` | 谐振子基态，Lanczos | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |
+| `eigen_1d.in` | 最低四态 | \(E_n=n+1/2\)，Hermite 重叠 |
+| `ground_itp.in` | 虚时求基态 | \(E(\tau)\to 0.5\) |
+| `ground_atom.in` | 一维软库仑基态 | 只看残差 |
+| `orbitals_ground.in` | 两谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
+| `helium_ground.in` | 精确一维双电子基态 | 只看残差 |
 
 演示输入网格较粗，为了尽快跑完。正式计算请把 `prec` 降到 `1d-5`–`1d-6` 并减小 `dt`。
 
@@ -302,6 +367,9 @@ E=\frac{D}{4}\Big(\alpha+\frac{\omega^2}{\alpha}\Big)+\tfrac12\omega^2 x_0^2+\tf
 | 重叠远小于 1 | 更小 `prec` / `dt`；`validate_ho` 时检查 `alpha = omega` |
 | `split` 启动很慢 | 在构造 TEO；测试时 `T` 保持很短 |
 | MPI 不能加速谐振子 | 正常：精确模式只有一棵树；用 OpenMP 或 `mode = 'orbital'` |
+| 缺少奇宇称谐振子态 | 把 `x0` 设成非零，初猜不要取偶函数 |
+| 残差降不下去 | 加大 `krylov_dim`、减小 `prec`、加大 `L` |
+| 虚时波函数塌缩 | 减小 `dt` |
 | 画不出图 | `pip install matplotlib`；在含 `.csv` / `.line` 的目录下运行 |
 
 ---
@@ -312,3 +380,5 @@ E=\frac{D}{4}\Big(\alpha+\frac{\omega^2}{\alpha}\Big)+\tfrac12\omega^2 x_0^2+\tf
 - `TimeEvolutionOperator` 仅 1D Legendre（传入 \(\tau=\Delta t/2\)，因为库里是 \(\exp(i\tau\partial_x^2)=\exp(-i T\Delta t)\)）。
 - 接触 \(\lambda\rho\) 不是库仑 Hartree。
 - MPI 不能把单棵树按空间分解。
+- 定态 Lanczos 把与光滑初猜重叠大的 Ritz 向量当作物理低能态；多小波动能算子没有下界，因此不用代数上最小的 Ritz 值。
+- 连续谱（`trap = 'free'`）得到的是盒子离散模，不是束缚态。

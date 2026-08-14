@@ -28,7 +28,8 @@ void usage(const char *argv0) {
         << "  --smoke              Tiny built-in RK4 run (ctest); no input file\n"
         << "  -h, --help           This message\n"
         << "\n"
-        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT &PARALLEL\n"
+        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT &PARALLEL &EIGEN\n"
+        << "  calculation = 'tdse' | 'ground' | 'eigen' | 'smoke'\n"
         << "Hybrid MPI+OpenMP: mpirun -np <ranks> --bind-to core:overload-allowed \\\n"
         << "                   -x OMP_NUM_THREADS=<threads> " << argv0 << " job.in\n"
         << "Run `" << argv0 << " --template` for keywords and defaults.\n";
@@ -101,6 +102,28 @@ const char *representation_name(Representation r) {
     return (r == Representation::Exact) ? "exact" : "orbital";
 }
 
+const char *job_kind_name(JobKind j) {
+    switch (j) {
+        case JobKind::Tdse:
+            return "tdse";
+        case JobKind::Ground:
+            return "ground";
+        case JobKind::Eigen:
+            return "eigen";
+    }
+    return "?";
+}
+
+const char *eigen_method_name(EigenMethod m) {
+    switch (m) {
+        case EigenMethod::Lanczos:
+            return "lanczos";
+        case EigenMethod::Itp:
+            return "itp";
+    }
+    return "?";
+}
+
 void print_parameters(const Parameters &p) {
     mrcpp::print::header(0, "NumericalTDSE parameters");
     if (!p.title.empty()) {
@@ -109,6 +132,7 @@ void print_parameters(const Parameters &p) {
     if (!p.input_path.empty()) {
         println(0, "  input           : " << p.input_path);
     }
+    println(0, "  calculation     : " << job_kind_name(p.job));
     mrcpp::print::value(0, "prec", p.prec);
     mrcpp::print::value(0, "order", static_cast<double>(p.order));
     mrcpp::print::value(0, "max_depth", static_cast<double>(p.max_depth));
@@ -123,6 +147,11 @@ void print_parameters(const Parameters &p) {
     println(0, "  kinetic         : " << kinetic_name(p.kinetic));
     println(0, "  representation  : " << representation_name(p.representation));
     println(0, "  trap            : " << trap_name(p.trap));
+    if (is_stationary(p)) {
+        println(0, "  eigen_method    : " << eigen_method_name(p.eigen_method));
+        mrcpp::print::value(0, "n_states", static_cast<double>(p.n_states));
+        mrcpp::print::value(0, "krylov_dim", static_cast<double>(p.krylov_dim));
+    }
     println(0, "  output          : " << p.output);
     mrcpp::print::value(0, "MPI ranks", static_cast<double>(parallel::size));
     mrcpp::print::value(0, "OpenMP threads / rank", static_cast<double>(parallel::nthreads));

@@ -20,6 +20,7 @@
 
 #include "MRCPP/MWFunctions"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -287,6 +288,84 @@ inline bool wants_analytic_overlap(const Parameters &p) {
         return true;
     }
     return false;
+}
+
+inline int binom_int(int n, int k) {
+    if (k < 0 || k > n) {
+        return 0;
+    }
+    if (k == 0 || k == n) {
+        return 1;
+    }
+    if (k > n - k) {
+        k = n - k;
+    }
+    long r = 1;
+    for (int i = 1; i <= k; ++i) {
+        r = r * (n - k + i) / i;
+    }
+    return static_cast<int>(r);
+}
+
+/** Shell index N = n1+…+nD of the k-th isotropic HO state (k is 0-based). */
+inline int ho_cartesian_shell(int k, int dim) {
+    if (dim <= 1) {
+        return std::max(0, k);
+    }
+    int count = 0;
+    for (int n = 0; n < 128; ++n) {
+        const int deg = binom_int(n + dim - 1, dim - 1);
+        if (count + deg > k) {
+            return n;
+        }
+        count += deg;
+    }
+    return 128;
+}
+
+/** Physicists' Hermite polynomial H_n(x). */
+inline double hermite_phys(int n, double x) {
+    if (n <= 0) {
+        return 1.0;
+    }
+    if (n == 1) {
+        return 2.0 * x;
+    }
+    double Hnm2 = 1.0;
+    double Hnm1 = 2.0 * x;
+    double Hn = 0.0;
+    for (int k = 2; k <= n; ++k) {
+        Hn = 2.0 * x * Hnm1 - 2.0 * static_cast<double>(k - 1) * Hnm2;
+        Hnm2 = Hnm1;
+        Hnm1 = Hn;
+    }
+    return Hn;
+}
+
+/** 1D HO eigenfunction ψ_n(x) (real, phase convention of Abramowitz & Stegun). */
+inline std::complex<double> ho_eigen_1d(double x, int n, double omega) {
+    const double xi = std::sqrt(omega) * x;
+    double fact = 1.0;
+    for (int i = 2; i <= n; ++i) {
+        fact *= static_cast<double>(i);
+    }
+    const double nrm = std::pow(omega / PI, 0.25) / std::sqrt(std::pow(2.0, n) * fact);
+    return nrm * std::exp(-0.5 * omega * x * x) * hermite_phys(n, xi);
+}
+
+/** Isotropic HO energy of the n-th lowest state (0-based), including degeneracy. */
+inline double analytic_eigen_energy(const Parameters &p, int n) {
+    if (p.representation == Representation::Exact && p.n_electrons != 1) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (p.lambda_contact != 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (p.trap != TrapKind::Harmonic || p.omega <= 0.0 || n < 0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const int shell = ho_cartesian_shell(n, p.spatial_dim);
+    return p.omega * (static_cast<double>(shell) + 0.5 * static_cast<double>(p.spatial_dim));
 }
 
 /** Coordinate function x_d, used to build the dipole density. */

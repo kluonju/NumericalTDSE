@@ -1,0 +1,39 @@
+! Imaginary-time relaxation onto the 1D HO ground state.
+! CSV is E(τ) vs E_ana = 1/2 (same columns as a TDSE run).
+! 虚时传播求基态。CSV 是 E(τ) 对照 1/2。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D HO ground state by imaginary time'
+  prefix      = 'ground_itp'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-3
+  order = 5
+  L     = 6.0
+/
+
+&TIME
+  dt         = 0.25
+  T          = 3.00
+  propagator = 'krylov'
+  krylov_dim = 8
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.6
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'itp'
+  conv_thr = 1.0d-5
+  max_iter = 16
+/

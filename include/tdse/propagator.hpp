@@ -32,6 +32,11 @@
 
 namespace tdse {
 
+enum class TimeKind {
+    Real, ///< exp(−i A Δt)
+    Imag  ///< exp(−A τ)  (imaginary-time / filter)
+};
+
 template <int D>
 using ApplyOp = std::function<void(CplxFun<D> &, CplxFun<D> &)>;
 
@@ -60,7 +65,12 @@ void minus_i_times(double prec, CplxFun<D> &out, CplxFun<D> &Hpsi) {
  * given as applyA(out, in) with `out` undefined on entry.
  */
 template <int D>
-void expm_krylov(double prec, CplxFun<D> &psi, const ApplyOp<D> &applyA, double dt, int m) {
+void expm_krylov(double prec,
+                 CplxFun<D> &psi,
+                 const ApplyOp<D> &applyA,
+                 double dt,
+                 int m,
+                 TimeKind kind = TimeKind::Real) {
     if (m < 2) {
         throw std::invalid_argument("Krylov dimension must be >= 2");
     }
@@ -126,7 +136,9 @@ void expm_krylov(double prec, CplxFun<D> &psi, const ApplyOp<D> &applyA, double 
     for (int k = 0; k < m_eff; ++k) {
         std::complex<double> acc = 0.0;
         for (int j = 0; j < m_eff; ++j) {
-            const std::complex<double> phase = std::exp(std::complex<double>(0.0, -eval(j) * dt));
+            const std::complex<double> phase = (kind == TimeKind::Imag)
+                    ? std::exp(std::complex<double>(-eval(j) * dt, 0.0))
+                    : std::exp(std::complex<double>(0.0, -eval(j) * dt));
             acc += Q(k, j) * phase * Q(0, j);
         }
         coeff(k) = nrm0 * acc;
@@ -159,6 +171,99 @@ template <int D>
 void step_krylov(double prec, CplxFun<D> &psi, OperatorSet<D> &ops, mrcpp::FunctionTree<D> &V, double dt, int m) {
     ApplyOp<D> H = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_hamiltonian(prec, out, ops, in, V); };
     expm_krylov(prec, psi, H, dt, m);
+}
+
+template <int D>
+void step_krylov_imag(double prec, CplxFun<D> &psi, OperatorSet<D> &ops, mrcpp::FunctionTree<D> &V, double dt, int m) {
+    ApplyOp<D> H = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_hamiltonian(prec, out, ops, in, V); };
+    expm_krylov(prec, psi, H, dt, m, TimeKind::Imag);
+}
+
+/** RK4 on ∂_τ ψ = −H ψ (static V). */
+template <int D>
+void step_rk4_imag(double prec, CplxFun<D> &psi, OperatorSet<D> &ops, mrcpp::FunctionTree<D> &V, double dt) {
+    auto f = [&](CplxFun<D> &k, CplxFun<D> &y) {
+        CplxFun<D> Hy(psi.mra);
+        apply_hamiltonian(prec, Hy, ops, y, V);
+        Hy.re.deep_copy(&k.re);
+        Hy.im.deep_copy(&k.im);
+        k.re.rescale(-1.0);
+        k.im.rescale(-1.0);
+    };
+
+    auto y_plus = [&](CplxFun<D> &out, CplxFun<D> &y, CplxFun<D> &k, double s) {
+        add_cplx(prec, out, 1.0, y, s, k);
+    };
+
+    CplxFun<D> k1(psi.mra);
+    f(k1, psi);
+
+    CplxFun<D> y2(psi.mra);
+    y_plus(y2, psi, k1, 0.5 * dt);
+    CplxFun<D> k2(psi.mra);
+    f(k2, y2);
+
+    CplxFun<D> y3(psi.mra);
+    y_plus(y3, psi, k2, 0.5 * dt);
+    CplxFun<D> k3(psi.mra);
+    f(k3, y3);
+
+    CplxFun<D> y4(psi.mra);
+    y_plus(y4, psi, k3, dt);
+    CplxFun<D> k4(psi.mra);
+    f(k4, y4);
+
+    mrcpp::FunctionTreeVector<D> re_terms;
+    mrcpp::FunctionTreeVector<D> im_terms;
+    re_terms.push_back(std::make_tuple(1.0, &psi.re));
+    re_terms.push_back(std::make_tuple(dt / 6.0, &k1.re));
+    re_terms.push_back(std::make_tuple(dt / 3.0, &k2.re));
+    re_terms.push_back(std::make_tuple(dt / 3.0, &k3.re));
+    re_terms.push_back(std::make_tuple(dt / 6.0, &k4.re));
+    im_terms.push_back(std::make_tuple(1.0, &psi.im));
+    im_terms.push_back(std::make_tuple(dt / 6.0, &k1.im));
+    im_terms.push_back(std::make_tuple(dt / 3.0, &k2.im));
+    im_terms.push_back(std::make_tuple(dt / 3.0, &k3.im));
+    im_terms.push_back(std::make_tuple(dt / 6.0, &k4.im));
+
+    mrcpp::FunctionTree<D> re_new(psi.mra);
+    mrcpp::FunctionTree<D> im_new(psi.mra);
+    mrcpp::add(prec, re_new, re_terms);
+    mrcpp::add(prec, im_new, im_terms);
+    copy_into(psi.re, re_new);
+    copy_into(psi.im, im_new);
+}
+
+template <int D>
+void step_split_imag(double prec,
+                     CplxFun<D> &psi,
+                     OperatorSet<D> &ops,
+                     mrcpp::FunctionTree<D> &V,
+                     double dt) {
+    apply_potential_damp(prec, psi, V, 0.5 * dt);
+    ApplyOp<D> T = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_kinetic_cplx(prec, out, ops, in); };
+    expm_krylov(prec, psi, T, dt, ops.p.krylov_dim, TimeKind::Imag);
+    apply_potential_damp(prec, psi, V, 0.5 * dt);
+}
+
+/** One imaginary-time step with the namelist propagator (TEO is not used). */
+template <int D>
+void step_imaginary(double prec,
+                    CplxFun<D> &psi,
+                    OperatorSet<D> &ops,
+                    mrcpp::FunctionTree<D> &V,
+                    const Parameters &p) {
+    switch (p.propagator) {
+        case Propagator::RK4:
+            step_rk4_imag(prec, psi, ops, V, p.dt);
+            break;
+        case Propagator::Split:
+            step_split_imag(prec, psi, ops, V, p.dt);
+            break;
+        case Propagator::Krylov:
+            step_krylov_imag(prec, psi, ops, V, p.dt, p.krylov_dim);
+            break;
+    }
 }
 
 template <int D>

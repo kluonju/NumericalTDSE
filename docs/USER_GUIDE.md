@@ -26,6 +26,8 @@ Two representations:
 
 Three time propagators: `krylov` (default), `split` (Strang), `rk4`.
 
+Stationary jobs (`calculation = 'ground'` or `'eigen'`) find the lowest eigenstates of the same \(H\) by Lanczos/Ritz (default) or imaginary-time propagation.
+
 ---
 
 ## 2. Build
@@ -64,6 +66,17 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 Or in one step: `./examples/run_and_plot.sh examples/harmonic_1d.in`.
 
+Ground state of the same oscillator (`E_0 = 1/2`):
+
+```bash
+./build/bin/tdse examples/ground_1d.in
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-3
+python3 examples/plot_observables.py ground_1d_observables.csv
+python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
+```
+
+Lowest four levels (`E_n = n + 1/2`): `./build/bin/tdse examples/eigen_1d.in`.
+
 This is a **coherent state** of the 1D harmonic oscillator (`α = ω = 1`, `x0 = 1`):
 
 - dipole \(\mu(t) = \cos(t)\)
@@ -93,14 +106,14 @@ Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced
 
 Free-format, Quantum ESPRESSO style: `&SECTION ... /`. Write only the keys you need; the rest keep defaults. Comments: `!` or `#`. Reals: `1.0d-4`. Booleans: `.true.` / `.false.`. Strings: `'quoted'` or bare.
 
-Sections: `&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  
-Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNCTION`/`PSI` → `INITIAL`; `FIELD` → `LASER`; `IO`/`OUT` → `OUTPUT`; `PARA`/`OMP` → `PARALLEL`.
+Sections: `&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL` `&EIGEN`  
+Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNCTION`/`PSI` → `INITIAL`; `FIELD` → `LASER`; `IO`/`OUT` → `OUTPUT`; `PARA`/`OMP` → `PARALLEL`; `GROUND`/`GS`/`SCF` → `EIGEN`.
 
 ### `&CONTROL`
 
 | Keyword | Default | Meaning |
 |---|---|---|
-| `calculation` | `'tdse'` | `'tdse'` or `'smoke'` (tiny RK4 preset; later keys override it) |
+| `calculation` | `'tdse'` | `'tdse'` / `'ground'` / `'eigen'` / `'smoke'` (`smoke` is a tiny RK4 preset; later keys override it) |
 | `title` | empty | printed in the log |
 | `prefix` | empty | if set and `output=` is omitted → `{prefix}_observables.csv` |
 | `printlevel` | 0 | MRCPP verbosity |
@@ -176,6 +189,20 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 |---|---|---|
 | `nthreads` | 0 | OpenMP threads per MPI rank; 0 → `OMP_NUM_THREADS` |
 
+### `&EIGEN`
+
+Used when `calculation = 'ground'` or `'eigen'`. Keywords are also accepted in `&CONTROL`.
+
+| Keyword | Default | Meaning |
+|---|---|---|
+| `n_states` | 1 / 4 | lowest eigenstates; default 1 for `ground` (exact), 4 for `eigen`, `electrons` in orbital mode |
+| `method` | `'lanczos'` | `'lanczos'` (Ritz of \(H\)) or `'itp'` (imaginary time \(\mathrm{e}^{-H\tau}\)) |
+| `conv_thr` | `1d-6` | ITP / SCF: stop when \(\lvert\Delta E\rvert\) is below this |
+| `residual` | `0` | \(\lVert(H-E)\psi\rVert\) threshold; `0` → \(50\times\) `prec` |
+| `max_iter` | 80 | ITP steps or SCF cycles |
+
+Laser field must be off (`E0 = 0`). For several HO states, use a **non-even** trial (`x0 ≠ 0`); an even Gaussian has no overlap with odd eigenfunctions.
+
 ---
 
 ## 6. Choosing numerics
@@ -184,6 +211,20 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 - **`L`**: the packet must stay away from \(\pm L\). Free packets spread and travel; enlarge the box (`free_boost.in` uses `L = 12`).
 - **`dt`**: RK4 is not unitary — use a smaller step or `renormalize`. Krylov is closer to unitary. Split + TEO is natural for 1D free kinetic evolution.
 - **`propagator`**: Krylov is the default for any dimension. `split` in 1D switches the basis to Legendre automatically.
+- **Stationary**: `lanczos` takes the ground state from a Krylov space of \(H\) (increase `krylov_dim` if the overlap is poor); higher states use a nodal guess plus a few imag-time RK4 steps. `itp` uses `dt` and `T` as imaginary time; if `propagator = 'krylov'`, imag-time RK4 is used instead of `exp(−Hτ)`. Orbital jobs with \(\lambda\neq 0\) wrap an SCF around the inner solver.
+
+### Ground state and lowest eigenstates
+
+The Hamiltonian is the same as in a TDSE run (trap + optional \(e\)–\(e\), no laser).
+
+- **`calculation = 'ground'`** — lowest state (or `n_states` lowest if you set it).
+- **`calculation = 'eigen'`** — several lowest states (default 4 in exact mode).
+
+**Lanczos (default).** Builds a Krylov space of \(H\) from a smooth trial. Because the multiwavelet kinetic operator is not bounded below, the algebraically smallest Ritz value is a spurious mode; the physical state is the Ritz vector that overlaps the trial. The ground state is obtained this way. Higher states use a nodal (Hermite) guess and a few imaginary-time RK4 steps in the orthogonal complement. Reports \(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) against the MW operator (this residual can stay large even when \(|\langle\psi_\mathrm{num}|\psi_n\rangle|\) is \(>0.99\)).
+
+**Imaginary time.** Substitute \(t=-i\tau\) so \(\partial_\tau\psi=-H\psi\). High-energy components decay; after each step the wave function is renormalized. Excited states are obtained sequentially with Gram–Schmidt. For `n_states = 1` the CSV is an \(E(\tau)\) history (same columns as TDSE). For several states, or for Lanczos, the CSV is a spectrum (`state,energy,residual,…`). If `propagator = 'krylov'`, ITP uses RK4 in imaginary time: a Krylov `exp(−Hτ)` would amplify spurious negative MW kinetic modes.
+
+Isotropic HO analytic energy (including 2D/3D degeneracy): \(E=\omega(N+D/2)\) with shell \(N=n_1+\cdots+n_D\). Wave-function overlap is filled for 1D all \(n\), and for \(D>1\) only the ground state.
 
 ---
 
@@ -215,12 +256,18 @@ CSV columns:
 
 ```text
 t, norm, dipole, energy, nodes_re, nodes_im,
-overlap_analytic, dipole_analytic, energy_analytic
+overlap_analytic, dipole_analytic, energy_analytic, residual
 ```
 
-`dipole_analytic` / `energy_analytic` are filled for **one electron**, `mode = 'exact'`, trap `harmonic` or `free` (energy only if `E0 = 0`). `overlap_analytic` is filled when `validate_free` or `validate_ho` is on.
+`dipole_analytic` / `energy_analytic` are filled for **one electron**, `mode = 'exact'`, trap `harmonic` or `free` (energy only if `E0 = 0`). `overlap_analytic` is filled when `validate_free` or `validate_ho` is on. `residual` is used in imaginary-time histories.
 
-1D plots (`plot = 'name'`): `name_t0_re.line`, `name_t0_im.line`, `name_tT_re.line`, `name_tT_im.line` (two columns: \(x\), value).
+Lanczos / multi-state jobs write a **spectrum** instead:
+
+```text
+state, energy, residual, overlap_analytic, energy_analytic, norm, dipole, nodes_re, nodes_im
+```
+
+1D plots (`plot = 'name'`): TDSE uses `name_t0_*` and `name_tT_*`; eigenstates use `name_n0_*`, `name_n1_*`, … (two columns: \(x\), value).
 
 ---
 
@@ -233,10 +280,11 @@ python3 examples/analytic_ref.py              # formula self-check
 python3 examples/compare_analytic.py run.csv  # RMS |μ−μ_ana|, |E−E_ana|, min overlap
 python3 examples/plot_observables.py run.csv -o obs.png
 python3 examples/plot_wavefunction.py name_t0 --analytic ho --x0 1 --omega 1 --t 0
+python3 examples/plot_wavefunction.py name_n0 --analytic hoeig --n 0 --omega 1
 python3 examples/plot_wavefunction.py name_tT --analytic free --alpha 1 --x0 0 --k0 0 --t 0.2
 ```
 
-`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999` returns a non-zero exit code on failure (useful in scripts).
+`compare_analytic.py --tol-dipole 1e-3 --tol-energy 1e-3 --tol-overlap 0.999 --tol-residual 1e-3` returns a non-zero exit code on failure (useful in scripts). Spectrum CSVs are detected automatically.
 
 ---
 
@@ -255,6 +303,16 @@ E=\frac{D}{4}\Big(\alpha+\frac{\omega^2}{\alpha}\Big)+\tfrac12\omega^2 x_0^2+\tf
 \]
 
 If \(\alpha=\omega\) this is a coherent state and `validate_ho` also reports \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\).
+
+**HO eigenstates** (stationary jobs)
+
+\[
+E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
+\psi_n(x)=\frac{1}{\sqrt{2^n n!}}\Bigl(\frac{\omega}{\pi}\Bigr)^{1/4}
+\mathrm{e}^{-\omega x^2/2}\,H_n(\sqrt{\omega}\,x)
+\]
+
+In \(D\) dimensions the \(k\)-th lowest level uses the Cartesian shell \(N=n_1+\cdots+n_D\), \(E=\omega(N+D/2)\).
 
 **Free particle**
 
@@ -287,6 +345,13 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `orbitals_2e.in` | 2 orbitals + \(\lambda\rho\) | none; MPI-friendly |
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | none; up to 4 MPI ranks |
 | `orbitals_smoke.in` | MPI ctest | tiny orbital RK4 |
+| `ground_smoke.in` | Lanczos HO ground (ctest) | \(E=0.5\) |
+| `ground_1d.in` | HO ground, Lanczos | \(E=0.5\), \(\psi_0\), \(\mu=0\) |
+| `eigen_1d.in` | four lowest HO states | \(E_n=n+1/2\), Hermite overlap |
+| `ground_itp.in` | HO ground by imaginary time | \(E(\tau)\to 0.5\) |
+| `ground_atom.in` | 1D soft-Coulomb ground | residual only |
+| `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
+| `helium_ground.in` | exact 1D 2e ground | residual only |
 
 Demo inputs use a coarse grid so they finish quickly. For production, lower `prec` to `1d-5`–`1d-6` and shrink `dt`.
 
@@ -302,6 +367,9 @@ Demo inputs use a coarse grid so they finish quickly. For production, lower `pre
 | overlap ≪ 1 | tighter `prec`, smaller `dt`, check `alpha = omega` for `validate_ho` |
 | `split` is slow to start | TEO construction; keep `T` short in tests |
 | MPI does not speed up HO | expected: exact mode is one tree; use OpenMP or `mode = 'orbital'` |
+| odd HO states missing | set `x0 ≠ 0` so the trial is not even |
+| residual stays large | increase `krylov_dim`, tighten `prec`, enlarge `L` |
+| ITP wave function vanished | decrease `dt` |
 | empty plots | `pip install matplotlib`; run from the directory that contains the `.csv` / `.line` files |
 
 ---
@@ -312,3 +380,5 @@ Demo inputs use a coarse grid so they finish quickly. For production, lower `pre
 - `TimeEvolutionOperator` is 1D Legendre only (`τ = Δt/2` because the library stores \(\exp(i\tau\partial_x^2)=\exp(-i T\Delta t)\)).
 - Contact \(\lambda\rho\) is not a Coulomb Hartree potential.
 - MPI cannot domain-decompose a single tree.
+- Stationary Lanczos finds physical low-lying states as Ritz vectors that overlap the smooth trial; the MW kinetic operator is not bounded below, so the algebraically smallest Ritz value is not used raw.
+- Continuum problems (`trap = 'free'`) yield box-discretized modes, not true bound states.

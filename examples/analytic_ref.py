@@ -72,6 +72,43 @@ def analytic_energy(
     return None
 
 
+def hermite(n: int, x: float) -> float:
+    if n <= 0:
+        return 1.0
+    if n == 1:
+        return 2.0 * x
+    hnm2, hnm1 = 1.0, 2.0 * x
+    hn = 0.0
+    for k in range(2, n + 1):
+        hn = 2.0 * x * hnm1 - 2.0 * (k - 1) * hnm2
+        hnm2, hnm1 = hnm1, hn
+    return hn
+
+
+def ho_eigen(x: float, n: int, omega: float = 1.0) -> complex:
+    xi = math.sqrt(omega) * x
+    nrm = (omega / PI) ** 0.25 / math.sqrt((2.0 ** n) * math.factorial(n))
+    return nrm * math.exp(-0.5 * omega * x * x) * hermite(n, xi)
+
+
+def ho_shell(k: int, dim: int) -> int:
+    if dim <= 1:
+        return max(0, k)
+    count = 0
+    n = 0
+    while n < 128:
+        deg = math.comb(n + dim - 1, dim - 1)
+        if count + deg > k:
+            return n
+        count += deg
+        n += 1
+    return 128
+
+
+def ho_eigen_energy(n: int, omega: float = 1.0, dim: int = 1) -> float:
+    return omega * (ho_shell(n, dim) + 0.5 * dim)
+
+
 if __name__ == "__main__":
     e_ho = analytic_energy("harmonic", alpha=1.0, x0=1.0, k0=0.0, omega=1.0, dim=1)
     e_sm = analytic_energy("harmonic", alpha=1.0, x0=0.5, k0=0.0, omega=1.0, dim=1)
@@ -81,4 +118,11 @@ if __name__ == "__main__":
     assert e_fr is not None and abs(e_fr - 0.25) < 1e-12, e_fr
     d0 = analytic_dipole("harmonic", 0.0, 1.0, 0.0, 1.0)
     assert d0 is not None and abs(d0 - 1.0) < 1e-12
+    assert abs(ho_eigen_energy(0) - 0.5) < 1e-12
+    assert abs(ho_eigen_energy(1) - 1.5) < 1e-12
+    assert abs(ho_eigen_energy(0, dim=2) - 1.0) < 1e-12
+    assert abs(ho_eigen_energy(1, dim=2) - 2.0) < 1e-12
+    assert abs(ho_eigen_energy(2, dim=2) - 2.0) < 1e-12
+    psi0 = ho_eigen(0.0, 0, 1.0)
+    assert abs(psi0.real - (1.0 / PI) ** 0.25) < 1e-12
     print("analytic_ref self-check ok")

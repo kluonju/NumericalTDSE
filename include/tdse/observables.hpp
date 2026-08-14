@@ -26,6 +26,8 @@ struct Observables {
     double overlap_analytic = 0.0; ///< |⟨ψ_num|ψ_ana⟩| for free / HO tests
     double dipole_analytic = std::numeric_limits<double>::quiet_NaN();
     double energy_analytic = std::numeric_limits<double>::quiet_NaN();
+    double residual = std::numeric_limits<double>::quiet_NaN(); ///< ||(H−E)ψ|| / ||ψ||
+    int state = -1; ///< eigenstate index; −1 for real-time rows
     int n_nodes_re = 0;
     int n_nodes_im = 0;
 };
@@ -87,14 +89,25 @@ Observables compute_observables(double prec,
 }
 
 inline void write_header(std::ostream &os) {
-    os << "t,norm,dipole,energy,nodes_re,nodes_im,overlap_analytic,dipole_analytic,energy_analytic\n";
+    os << "t,norm,dipole,energy,nodes_re,nodes_im,overlap_analytic,dipole_analytic,energy_analytic,residual\n";
 }
 
 inline void write_row(std::ostream &os, const Observables &o) {
     os << std::scientific << std::setprecision(12)
        << o.t << ',' << o.nrm << ',' << o.dipole << ',' << o.energy << ','
        << o.n_nodes_re << ',' << o.n_nodes_im << ',' << o.overlap_analytic << ','
-       << o.dipole_analytic << ',' << o.energy_analytic << '\n';
+       << o.dipole_analytic << ',' << o.energy_analytic << ',' << o.residual << '\n';
+}
+
+inline void write_spectrum_header(std::ostream &os) {
+    os << "state,energy,residual,overlap_analytic,energy_analytic,norm,dipole,nodes_re,nodes_im\n";
+}
+
+inline void write_spectrum_row(std::ostream &os, const Observables &o) {
+    os << o.state << ',' << std::scientific << std::setprecision(12)
+       << o.energy << ',' << o.residual << ',' << o.overlap_analytic << ','
+       << o.energy_analytic << ',' << o.nrm << ',' << o.dipole << ','
+       << o.n_nodes_re << ',' << o.n_nodes_im << '\n';
 }
 
 inline void print_row(const Observables &o) {
@@ -113,6 +126,9 @@ inline void print_row(const Observables &o) {
     }
     if (std::isfinite(o.energy_analytic)) {
         ss << "  E_ana=" << std::setprecision(6) << o.energy_analytic;
+    }
+    if (std::isfinite(o.residual)) {
+        ss << "  ||(H-E)ψ||=" << std::scientific << std::setprecision(3) << o.residual;
     }
     println(0, ss.str());
 }

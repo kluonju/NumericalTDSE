@@ -33,6 +33,12 @@ mindmap
         Up to 4 orbitals
         Each FunctionTree of dim
         Optional contact lambda rho
+    Stationary
+      Ground state
+      Lowest n eigenstates
+      Lanczos Ritz default
+      Imaginary time ITP
+      HO E_n equals omega times n plus one-half
     MRA MRCPP
       Box minus L to L
       Order k and max_depth
@@ -56,8 +62,8 @@ mindmap
     Input I/O
       QE namelist job.in
       Sections CONTROL MRA TIME
-      SYSTEM INITIAL LASER OUTPUT PARALLEL
-      CSV observables
+      SYSTEM INITIAL LASER OUTPUT PARALLEL EIGEN
+      CSV observables and spectrum
       Optional 1D plots
 ```
 
@@ -71,13 +77,16 @@ flowchart LR
   D --> E["run"]
   E --> F["exact: one FunctionTree"]
   E --> G["orbital: N FunctionTrees"]
+  E --> S["ground / eigen"]
   F --> H["project psi and V"]
   G --> H
+  S --> L["Lanczos or ITP"]
   H --> I["Krylov / Split / RK4"]
   I --> J["norm dipole energy CSV"]
+  L --> K["spectrum CSV + residual"]
 ```
 
-Module map: `main` → `input` / `parameters` / `parallel` → `simulate` → `analytic` + `operators` + `propagator` + `observables` + `wavefunction`, all sitting on MRCPP `FunctionTree` / `MultiResolutionAnalysis`.
+Module map: `main` → `input` / `parameters` / `parallel` → `simulate` → `analytic` + `operators` + `propagator` + `eigen` + `observables` + `wavefunction`, all sitting on MRCPP `FunctionTree` / `MultiResolutionAnalysis`.
 
 ---
 
@@ -184,6 +193,8 @@ srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
 ./build/bin/tdse --template          # 打印带注释的完整模板
 ./build/bin/tdse --smoke             # 内置短跑，供 ctest
 ./examples/run_and_plot.sh examples/harmonic_1d.in
+./build/bin/tdse examples/ground_1d.in
+./build/bin/tdse examples/eigen_1d.in
 ```
 
 段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  
@@ -200,7 +211,7 @@ srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
 /
 ```
 
-算例目录见 [examples/README.md](examples/README.md)：谐振子 / 自由高斯 / 激光 / 软原子 / 精确双电子 / 轨道平均场，多数可与解析 \(\mu(t)\)、\(E\) 或 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 对照。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。
+算例目录见 [examples/README.md](examples/README.md)：谐振子 / 自由高斯 / 激光 / 软原子 / 精确双电子 / 轨道平均场 / **基态与最低本征态**，多数可与解析 \(\mu(t)\)、\(E_n\) 或 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 对照。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。`calculation = 'ground'` / `'eigen'` 用 Lanczos（默认）或虚时传播求最低本征态。
 
 画图（需 `pip install matplotlib`）：
 
@@ -210,7 +221,7 @@ python3 examples/plot_observables.py harmonic_1d_observables.csv
 python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omega 1 --t 0
 ```
 
-CSV 列：`t, norm, dipole, energy, nodes_re, nodes_im, overlap_analytic, dipole_analytic, energy_analytic`。`prefix = 'job'` 且未写 `output=` 时，观测文件为 `job_observables.csv`。完整关键字与解析公式见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) / [docs/USER_GUIDE.zh.md](docs/USER_GUIDE.zh.md)。
+CSV 列（TDSE / 虚时）：`t, norm, dipole, energy, nodes_re, nodes_im, overlap_analytic, dipole_analytic, energy_analytic, residual`。本征谱：`state, energy, residual, overlap_analytic, energy_analytic, …`。`prefix = 'job'` 且未写 `output=` 时，观测文件为 `job_observables.csv`。完整关键字与解析公式见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) / [docs/USER_GUIDE.zh.md](docs/USER_GUIDE.zh.md)。
 
 ---
 
@@ -223,8 +234,10 @@ include/tdse/
   analytic.hpp        RepresentableFunction：初态与含时势能
   wavefunction.hpp    复数波函数 = (Re FunctionTree, Im FunctionTree)
   operators.hpp       MRA 算子：ABGV、IdentityConvolution、动能 / 势能作用
-  propagator.hpp      Split / Krylov / RK4
-  observables.hpp     模方、偶极、能量
+  propagator.hpp      Split / Krylov / RK4（含虚时）
+  eigen.hpp           基态 / 最低本征态（Lanczos 与 ITP）
+  setup.hpp           MRA 与投影公共函数
+  observables.hpp     模方、偶极、能量、残差
   simulate.hpp        时间循环
   parallel.hpp        MPI + OpenMP（轨道分 rank，树内 OpenMP）
 src/main.cpp          入口（MPI_Init_thread / Finalize）

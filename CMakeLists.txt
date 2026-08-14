@@ -137,6 +137,13 @@ set_tests_properties(tdse_namelist_smoke PROPERTIES
     TIMEOUT 300
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+add_test(NAME tdse_ground_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/ground_smoke.in
+)
+set_tests_properties(tdse_ground_smoke PROPERTIES
+    TIMEOUT 300
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 if(NUMTDSE_MPI AND MPI_CXX_FOUND AND MPIEXEC_EXECUTABLE)
     set(_numtdse_mpi_preflags)

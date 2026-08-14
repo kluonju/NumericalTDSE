@@ -147,6 +147,21 @@ void apply_potential_exponential(double prec,
     copy_into(psi.im, im_new);
 }
 
+/** Real damping ψ ← exp(−V τ) ψ (imaginary-time local factor). */
+template <int D>
+void apply_potential_damp(double prec, CplxFun<D> &psi, mrcpp::FunctionTree<D> &V, double tau) {
+    mrcpp::FunctionTree<D> eV(V.getMRA());
+    mrcpp::FMap<double, double> exp_map = [tau](double v) { return std::exp(-v * tau); };
+    mrcpp::treeMap(prec, eV, V, exp_map);
+
+    mrcpp::FunctionTree<D> re_new(V.getMRA());
+    mrcpp::FunctionTree<D> im_new(V.getMRA());
+    mrcpp::multiply(prec, re_new, 1.0, eV, psi.re);
+    mrcpp::multiply(prec, im_new, 1.0, eV, psi.im);
+    copy_into(psi.re, re_new);
+    copy_into(psi.im, im_new);
+}
+
 /**
  * Apply the complex convolution E = ReE + i ImE:
  *   (ReE + i ImE)(ψr + i ψi) = (ReE ψr − ImE ψi) + i (ImE ψr + ReE ψi)

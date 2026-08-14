@@ -27,6 +27,17 @@ enum class TrapKind {
     SoftAtom  ///< −Z / sqrt(r² + a²)
 };
 
+enum class JobKind {
+    Tdse,   ///< Real-time i ∂t ψ = H ψ
+    Ground, ///< Lowest eigenstate(s); default n_states = 1 (exact) or n_electrons (orbital)
+    Eigen   ///< Several lowest eigenstates; default n_states = 4 (exact) or n_electrons (orbital)
+};
+
+enum class EigenMethod {
+    Lanczos, ///< Hermitian Ritz extraction from a Krylov space of H (linear; SCF outer loop if λρ ≠ 0)
+    Itp      ///< Imaginary-time relaxation ψ(τ) ∝ exp(−H τ) ψ, Gram–Schmidt for excited states
+};
+
 /**
  * All user-tunable numerical and physical parameters.
  *
@@ -89,7 +100,21 @@ struct Parameters {
     bool ident_check = true; ///< Apply IdentityConvolution once at t = 0 as a sanity check
     bool renormalize = false; ///< Project back onto the unit sphere after each step
     int nthreads = 0;       ///< OpenMP threads per MPI rank; 0 → OMP_NUM_THREADS / runtime default
+
+    // --- Stationary (ground / lowest eigenstates) ---
+    JobKind job = JobKind::Tdse;
+    EigenMethod eigen_method = EigenMethod::Lanczos;
+    int n_states = 1;           ///< Number of lowest eigenstates to compute
+    bool n_states_explicit = false;
+    bool eigen_method_explicit = false;
+    double eigen_thr = 1.0e-6;  ///< ITP / SCF: stop when |ΔE| is below this
+    double eigen_residual = 0.0; ///< ||(H−E)ψ|| threshold; 0 → 50 × prec
+    int eigen_maxiter = 80;     ///< ITP steps or SCF cycles
 };
+
+inline bool is_stationary(const Parameters &p) {
+    return p.job == JobKind::Ground || p.job == JobKind::Eigen;
+}
 
 Parameters parse_cli(int argc, char **argv);
 void apply_smoke_defaults(Parameters &p);
@@ -97,6 +122,8 @@ int mra_dimension(const Parameters &p);
 const char *propagator_name(Propagator p);
 const char *kinetic_name(KineticKind k);
 const char *representation_name(Representation r);
+const char *job_kind_name(JobKind j);
+const char *eigen_method_name(EigenMethod m);
 void print_parameters(const Parameters &p);
 
 } // namespace tdse

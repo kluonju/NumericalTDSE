@@ -1,0 +1,33 @@
+! Soft-Coulomb 1D atom ground state. No elementary closed form; watch residual.
+! 一维软库仑原子基态。无初等解析解，看残差 ||(H−E)ψ||。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D soft-Coulomb ground state'
+  prefix      = 'ground_atom'
+  ident_check = .false.
+/
+
+&MRA
+  prec = 1.0d-4
+  L    = 12.0
+/
+
+&SYSTEM
+  trap   = 'atom'
+  Z      = 1.0
+  soft_a = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
+
+&OUTPUT
+  plot = 'ground_atom'
+/

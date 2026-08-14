@@ -51,8 +51,13 @@ def main() -> int:
 
     path = Path(args.csv_file)
     d = load_csv(path)
-    t = d["t"]
     out = Path(args.output) if args.output else path.with_suffix(".png")
+    title = args.title or path.stem
+
+    if "state" in d and "energy" in d and "t" not in d:
+        return plot_spectrum(d, out, title, args.show)
+
+    t = d["t"]
 
     nplot = 3
     if has_finite(d.get("overlap_analytic", [])) and max(d["overlap_analytic"]) > 0:
@@ -82,12 +87,44 @@ def main() -> int:
         axes[3].set_ylim(0.999, 1.0001)
 
     axes[-1].set_xlabel("$t$ (a.u.)")
-    title = args.title or path.stem
     fig.suptitle(title)
     fig.tight_layout()
     fig.savefig(out, dpi=160)
     print(f"wrote {out}")
     if args.show:
+        plt.show()
+    return 0
+
+
+def plot_spectrum(d, out, title, show) -> int:
+    import matplotlib.pyplot as plt
+
+    n = d["state"]
+    fig, axes = plt.subplots(3, 1, figsize=(7.2, 6.4), sharex=True)
+    axes[0].plot(n, d["energy"], "o-", ms=6, label="numerical")
+    if has_finite(d.get("energy_analytic", [])):
+        axes[0].plot(n, d["energy_analytic"], "s--", label="analytic")
+    axes[0].set_ylabel("energy $E_n$")
+    axes[0].legend(frameon=False)
+
+    if has_finite(d.get("residual", [])):
+        axes[1].semilogy(n, [max(v, 1e-16) if math.isfinite(v) else 1e-16 for v in d["residual"]], "o-")
+    else:
+        axes[1].plot(n, [0.0] * len(n))
+    axes[1].set_ylabel(r"$\|(H-E)\psi\|$")
+
+    ov = d.get("overlap_analytic", [0.0] * len(n))
+    axes[2].plot(n, ov, "o-")
+    axes[2].set_ylabel(r"$|\langle\mathrm{num}|\mathrm{ana}\rangle|$")
+    axes[2].set_ylim(0.0, 1.05)
+    axes[2].set_xlabel("state $n$")
+    axes[2].set_xticks(n)
+
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(out, dpi=160)
+    print(f"wrote {out}")
+    if show:
         plt.show()
     return 0
 

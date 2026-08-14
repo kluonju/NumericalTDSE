@@ -107,4 +107,44 @@ void crop(CplxFun<D> &psi, double prec) {
     psi.im.crop(prec);
 }
 
+/** out = y + a x. `out` must be undefined. */
+template <int D>
+void add_cplx_scaled(double prec,
+                     CplxFun<D> &out,
+                     CplxFun<D> &y,
+                     std::complex<double> a,
+                     CplxFun<D> &x) {
+    mrcpp::FunctionTreeVector<D> re_terms;
+    mrcpp::FunctionTreeVector<D> im_terms;
+    re_terms.push_back(std::make_tuple(1.0, &y.re));
+    im_terms.push_back(std::make_tuple(1.0, &y.im));
+    if (std::abs(a.real()) > 1.0e-18) {
+        re_terms.push_back(std::make_tuple(a.real(), &x.re));
+        im_terms.push_back(std::make_tuple(a.real(), &x.im));
+    }
+    if (std::abs(a.imag()) > 1.0e-18) {
+        re_terms.push_back(std::make_tuple(-a.imag(), &x.im));
+        im_terms.push_back(std::make_tuple(a.imag(), &x.re));
+    }
+    mrcpp::add(prec, out.re, re_terms);
+    mrcpp::add(prec, out.im, im_terms);
+}
+
+/** Modified Gram–Schmidt against an already orthonormal set. */
+template <int D>
+void orthogonalize(double prec, CplxFun<D> &psi, const std::vector<CplxFun<D> *> &basis) {
+    for (auto *phi : basis) {
+        if (phi == nullptr) {
+            continue;
+        }
+        const std::complex<double> c = inner(*phi, psi);
+        if (std::abs(c) < 1.0e-18) {
+            continue;
+        }
+        CplxFun<D> tmp(psi.mra);
+        add_cplx_scaled(prec, tmp, psi, -c, *phi);
+        copy_into(psi, tmp);
+    }
+}
+
 } // namespace tdse

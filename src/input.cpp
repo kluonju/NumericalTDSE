@@ -48,11 +48,14 @@ std::string canonical_section(std::string name) {
     if (name == "PARA" || name == "OMP") {
         return "PARALLEL";
     }
+    if (name == "GROUND" || name == "GS" || name == "EIGENSTATE" || name == "EIGENSTATES" || name == "SCF") {
+        return "EIGEN";
+    }
     return name;
 }
 
 const std::unordered_set<std::string> kKnownSections = {
-        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT", "PARALLEL"};
+        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT", "PARALLEL", "EIGEN"};
 
 bool is_ident_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
 
@@ -249,7 +252,64 @@ void set_basis(Parameters &p, const std::string &raw, const std::string &origin)
     }
 }
 
+void set_eigen_method(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    if (s == "lanczos" || s == "ritz" || s == "krylov") {
+        p.eigen_method = EigenMethod::Lanczos;
+        p.eigen_method_explicit = true;
+    } else if (s == "itp" || s == "imag" || s == "imaginary" || s == "relaxation" || s == "filter") {
+        p.eigen_method = EigenMethod::Itp;
+        p.eigen_method_explicit = true;
+    } else {
+        throw std::invalid_argument(origin + ": unknown eigen method '" + raw + "' (lanczos|itp)");
+    }
+}
+
+void set_calculation(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    if (s == "tdse") {
+        p.job = JobKind::Tdse;
+        p.smoke = false;
+    } else if (s == "smoke") {
+        p.job = JobKind::Tdse;
+        p.smoke = true;
+    } else if (s == "ground" || s == "gs" || s == "scf") {
+        p.job = JobKind::Ground;
+        p.smoke = false;
+    } else if (s == "eigen" || s == "eigenstate" || s == "eigenstates" || s == "stationary") {
+        p.job = JobKind::Eigen;
+        p.smoke = false;
+    } else {
+        throw std::invalid_argument(origin + ": calculation must be 'tdse', 'ground', 'eigen' or 'smoke'");
+    }
+}
+
 bool is_control_like(const std::string &section) { return section == "CONTROL" || section == "OUTPUT"; }
+
+bool apply_eigen_keyword(Parameters &p, const std::string &key, const std::string &value, const std::string &origin) {
+    if (key == "n_states" || key == "nstates" || key == "n_eigen" || key == "states") {
+        p.n_states = parse_int(value, origin);
+        p.n_states_explicit = true;
+        return true;
+    }
+    if (key == "eigen_method" || key == "method" || key == "eigensolver") {
+        set_eigen_method(p, value, origin);
+        return true;
+    }
+    if (key == "conv_thr" || key == "thr" || key == "eigen_thr") {
+        p.eigen_thr = parse_double(value, origin);
+        return true;
+    }
+    if (key == "residual" || key == "residual_thr" || key == "res_thr") {
+        p.eigen_residual = parse_double(value, origin);
+        return true;
+    }
+    if (key == "max_iter" || key == "maxiter" || key == "scf_iter") {
+        p.eigen_maxiter = parse_int(value, origin);
+        return true;
+    }
+    return false;
+}
 
 } // namespace
 
@@ -267,11 +327,7 @@ void apply_namelist_assignment(Parameters &p,
 
     if (is_control_like(section)) {
         if (key == "calculation") {
-            const std::string s = to_lower_copy(value);
-            if (s != "tdse" && s != "smoke") {
-                throw std::invalid_argument(origin + ": calculation must be 'tdse' or 'smoke'");
-            }
-            p.smoke = (s == "smoke");
+            set_calculation(p, value, origin);
         } else if (key == "title") {
             p.title = unquote(value);
         } else if (key == "prefix") {
@@ -311,6 +367,8 @@ void apply_namelist_assignment(Parameters &p,
             p.smoke = parse_bool(value, origin);
         } else if (key == "nthreads" || key == "omp_threads" || key == "threads") {
             p.nthreads = parse_int(value, origin);
+        } else if (apply_eigen_keyword(p, key, value, origin)) {
+            return;
         } else {
             unknown();
         }
@@ -321,6 +379,13 @@ void apply_namelist_assignment(Parameters &p,
         if (key == "nthreads" || key == "omp_threads" || key == "threads" || key == "omp") {
             p.nthreads = parse_int(value, origin);
         } else {
+            unknown();
+        }
+        return;
+    }
+
+    if (section == "EIGEN") {
+        if (!apply_eigen_keyword(p, key, value, origin)) {
             unknown();
         }
         return;
@@ -503,6 +568,32 @@ void finalize_parameters(Parameters &p) {
             throw std::invalid_argument("validate_ho requires SYSTEM omega > 0");
         }
     }
+    if (!p.n_states_explicit && is_stationary(p)) {
+        if (p.representation == Representation::Orbital) {
+            p.n_states = p.n_electrons;
+        } else if (p.job == JobKind::Eigen) {
+            p.n_states = 4;
+        } else {
+            p.n_states = 1;
+        }
+    }
+    if (is_stationary(p)) {
+        if (p.E0 != 0.0) {
+            throw std::invalid_argument("ground/eigen calculations require LASER E0 = 0");
+        }
+        if (p.n_states < 1 || p.n_states > 12) {
+            throw std::invalid_argument("EIGEN n_states must be 1..12");
+        }
+        if (p.eigen_maxiter < 1) {
+            throw std::invalid_argument("EIGEN max_iter must be >= 1");
+        }
+        if (p.eigen_method == EigenMethod::Lanczos) {
+            const int need = std::max(std::max(p.n_states + 6, 2 * p.n_states), 8);
+            if (p.krylov_dim < need) {
+                p.krylov_dim = need;
+            }
+        }
+    }
     if (!p.prefix.empty() && !p.output_explicit) {
         p.output = p.prefix + "_observables.csv";
     }
@@ -541,7 +632,7 @@ void write_input_template(std::ostream &os) {
 ! Booleans: .true. / .false.   Strings: 'quoted' or unquoted.
 
 &CONTROL
-  calculation   = 'tdse'          ! 'tdse' | 'smoke' (smoke is a tiny RK4 preset; other keys override it)
+  calculation   = 'tdse'          ! 'tdse' | 'ground' | 'eigen' | 'smoke'
   title         = 'job'
   prefix        = 'job'           ! default output = prefix_observables.csv
   printlevel    = 0
@@ -549,7 +640,8 @@ void write_input_template(std::ostream &os) {
   ident_check   = .true.
   renormalize   = .false.
   validate_free = .false.         ! overlap vs analytic free Gaussian
-  validate_ho   = .false.         ! overlap vs HO coherent state (needs alpha = omega)
+  validate_ho   = .false.         ! TDSE: coherent state; ground/eigen: HO ψ_n
+  n_states      = 1               ! lowest eigenstates (ground/eigen jobs)
 /
 
 &MRA
@@ -601,6 +693,14 @@ void write_input_template(std::ostream &os) {
 
 &PARALLEL
   nthreads = 0                    ! OpenMP threads per MPI rank; 0 → OMP_NUM_THREADS
+/
+
+&EIGEN
+  n_states   = 1                  ! ignored unless calculation = 'ground' or 'eigen'
+  method     = 'lanczos'          ! 'lanczos' (Ritz) | 'itp' (imaginary time)
+  conv_thr   = 1.0d-6             ! ITP/SCF |ΔE| threshold
+  residual   = 0.0                ! ||(H-E)ψ||; 0 → 50*prec
+  max_iter   = 80
 /
 )INP";
 }
