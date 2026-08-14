@@ -66,6 +66,12 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 也可以一步完成：`./examples/run_and_plot.sh examples/harmonic_1d.in`。
 
+这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
+
+- 偶极 \(\mu(t) = \cos(t)\)
+- 能量 \(E = 1\)（理论 \(\omega/2 + \tfrac12 \omega^2 x_0^2\)）
+- 重叠 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 会打印并写入 CSV
+
 同一谐振子的基态（\(E_0 = 1/2\)）：
 
 ```bash
@@ -112,10 +118,18 @@ python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-en
 
 实时：`examples/orbitals_3e.in`。MPI 可按轨道分：`mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in`。
 
-**2. 精确 \(N\) 体。** 一张 `FunctionTree<3>` 表示 \(\psi(x_1,x_2,x_3)\)，是三维自适应树，`prec` 要粗、\(T\) 要短。`fermion = .true.` 用 HO 轨道 \(n=0,1,2\) 的 Slater 行列式。精确模式默认带软库仑 \(V_{ee}\)，可关掉：
+**2. 精确 \(N\) 体（打开软库仑 \(V_{ee}\)）。** 一张 `FunctionTree<3>` 表示 \(\psi(x_1,x_2,x_3)\)。坐标 `r[i]` 是第 \(i\) 个电子。哈密顿量是
+
+\[
+H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
++ \sum_{i<j}\frac{1}{\sqrt{(x_i-x_j)^2+a^2}}.
+\]
+
+这是三维自适应树，`prec` 要粗、\(T\) 要短。`fermion = .true.` 用 HO 轨道 \(n=0,1,2\) 的 Slater 行列式（无相互作用基态，也是有相互作用时的好初猜）。没有初等解析能；排斥使 \(E\) 高于 \(4.5\,\omega\)。
 
 ```bash
-./build/bin/tdse examples/ho_3e_exact.in
+./build/bin/tdse examples/ho_3e_exact.in            # 短时 TDSE
+./build/bin/tdse examples/ho_3e_exact_ground.in     # Lanczos 基态
 ```
 
 ```fortran
@@ -124,18 +138,14 @@ python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-en
   electrons = 3
   mode      = 'exact'
   trap      = 'harmonic'
+  omega     = 1.0
   fermion   = .true.
-  ee        = .false.      ! .true. → 1/sqrt((x_i-x_j)²+a²)
+  ee        = .true.
+  soft_a    = 1.0          ! V_ee 里的正则化长度 a
 /
 ```
 
-`ee = .false.` 时该 Slater 就是无相互作用费米基态，\(E=4.5\) 守恒。要求基态把 `calculation = 'ground'` 即可（比轨道模式重得多）。
-
-这是一维谐振子的**相干态**（`α = ω = 1`，`x0 = 1`）：
-
-- 偶极 \(\mu(t) = \cos(t)\)
-- 能量 \(E = 1\)（理论 \(\omega/2 + \tfrac12 \omega^2 x_0^2\)）
-- 重叠 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 会打印并写入 CSV
+只有做无相互作用对照时才设 `ee = .false.`（\(E=4.5\) 守恒）。轨道模式 `lambda > 0` 是接触平均场，和这里的 \(V_{ee}\) 不是一回事。
 
 ---
 
@@ -413,7 +423,8 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `orbitals_4e.in` | 四轨道 + \(\lambda\rho\) | 无；最多 4 个 MPI rank |
 | `orbitals_3e_ground.in` | 三谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
 | `orbitals_3e.in` | 三轨道实时 | 无；适合 MPI |
-| `ho_3e_exact.in` | 精确一维三电子 Slater | `ee=.false.` 时 \(E=4.5\) |
+| `ho_3e_exact.in` | 精确一维三电子 + \(V_{ee}\) | 看 \(\\|\psi\\|\)，\(E>4.5\) |
+| `ho_3e_exact_ground.in` | 精确三电子相互作用基态 | 残差；\(E>4.5\) |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
 | `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
 | `ground_1d.in` | 谐振子基态，Lanczos + BS | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |

@@ -28,7 +28,8 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | 四轨道 | none; up to 4 ranks |
 | `orbitals_3e_ground.in` | 3 HO orbitals, \(\lambda=0\) | 三轨道基态 | \(0.5,1.5,2.5\) |
 | `orbitals_3e.in` | 3-orbital HO TDSE | 三轨道实时 | none; MPI ok |
-| `ho_3e_exact.in` | exact 1D 3e HO, Slater | 精确三电子 | \(E=4.5\) if `ee=.false.` |
+| `ho_3e_exact.in` | exact 1D 3e HO + \(V_{ee}\) | 精确三电子+排斥 | \(E>4.5\) |
+| `ho_3e_exact_ground.in` | exact 1D 3e interacting GS | 精确三电子基态 | residual |
 | `ground_1d.in` | HO ground (Lanczos, BS) | 谐振子基态 | \(E=0.5\), \(\psi_0\) |
 | `eigen_1d.in` | four lowest HO states | 最低四本征态 | \(E_n=n+1/2\) |
 | `ground_1d_precise.in` | tighter HO ground | 更高精度基态 | \(\lvert\Delta E\rvert\sim10^{-7}\) |

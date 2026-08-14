@@ -66,6 +66,12 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 Or in one step: `./examples/run_and_plot.sh examples/harmonic_1d.in`.
 
+This is a **coherent state** of the 1D harmonic oscillator (`α = ω = 1`, `x0 = 1`):
+
+- dipole \(\mu(t) = \cos(t)\)
+- energy \(E = 1\) (theory \(\omega/2 + \tfrac12 \omega^2 x_0^2\))
+- overlap \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) printed and stored in the CSV
+
 Ground state of the same oscillator (`E_0 = 1/2`):
 
 ```bash
@@ -112,10 +118,18 @@ python3 examples/compare_analytic.py orbitals_3e_ground_observables.csv --tol-en
 
 Real-time: `examples/orbitals_3e.in`. MPI can split the three orbitals: `mpirun -np 3 ./build/bin/tdse examples/orbitals_3e.in`.
 
-**2. Exact \(N\)-body.** One `FunctionTree<3>` for \(\psi(x_1,x_2,x_3)\). This is a 3D adaptive tree — keep `prec` coarse and \(T\) short. `fermion = .true.` loads a Slater determinant of HO orbitals \(n=0,1,2\). Exact mode includes soft-Coulomb \(V_{ee}\) unless you turn it off:
+**2. Exact \(N\)-body (soft-Coulomb \(V_{ee}\) on).** One `FunctionTree<3>` for \(\psi(x_1,x_2,x_3)\). Coordinates: `r[i]` is electron \(i\). The Hamiltonian is
+
+\[
+H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
++ \sum_{i<j}\frac{1}{\sqrt{(x_i-x_j)^2+a^2}}.
+\]
+
+This is a 3D adaptive tree — keep `prec` coarse and \(T\) short. `fermion = .true.` loads a Slater determinant of HO orbitals \(n=0,1,2\) (the non-interacting ground state, a good interacting trial). There is no elementary analytic energy; repulsion pushes \(E\) above \(4.5\,\omega\).
 
 ```bash
-./build/bin/tdse examples/ho_3e_exact.in
+./build/bin/tdse examples/ho_3e_exact.in            # short TDSE
+./build/bin/tdse examples/ho_3e_exact_ground.in     # Lanczos ground state
 ```
 
 ```fortran
@@ -124,18 +138,14 @@ Real-time: `examples/orbitals_3e.in`. MPI can split the three orbitals: `mpirun 
   electrons = 3
   mode      = 'exact'
   trap      = 'harmonic'
+  omega     = 1.0
   fermion   = .true.
-  ee        = .false.      ! .true. → 1/sqrt((x_i-x_j)²+a²)
+  ee        = .true.
+  soft_a    = 1.0          ! regularisation a in V_ee
 /
 ```
 
-With `ee = .false.` the Slater is the non-interacting fermionic ground state and \(E=4.5\) is conserved. Ground-state search on this tree is the same namelist with `calculation = 'ground'` (much heavier than the orbital job).
-
-This is a **coherent state** of the 1D harmonic oscillator (`α = ω = 1`, `x0 = 1`):
-
-- dipole \(\mu(t) = \cos(t)\)
-- energy \(E = 1\) (theory \(\omega/2 + \tfrac12 \omega^2 x_0^2\))
-- overlap \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) printed and stored in the CSV
+Set `ee = .false.` only if you want the non-interacting check (\(E=4.5\) conserved). The orbital job with `lambda > 0` is a cheaper contact mean-field stand-in, not the same as this \(V_{ee}\).
 
 ---
 
@@ -413,7 +423,8 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | none; up to 4 MPI ranks |
 | `orbitals_3e_ground.in` | 3 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
 | `orbitals_3e.in` | 3-orbital HO TDSE | none; MPI-friendly |
-| `ho_3e_exact.in` | exact 1D 3e HO Slater | \(E=4.5\) if `ee=.false.` |
+| `ho_3e_exact.in` | exact 1D 3e HO + \(V_{ee}\) | watch \(\\|\psi\\|\) and \(E>4.5\) |
+| `ho_3e_exact_ground.in` | exact 1D 3e interacting GS | residual; \(E>4.5\) |
 | `orbitals_smoke.in` | MPI ctest | tiny orbital RK4 |
 | `ground_smoke.in` | Lanczos HO ground (ctest) | \(E=0.5\) |
 | `ground_1d.in` | HO ground, Lanczos + BS | \(E=0.5\), \(\psi_0\), \(\mu=0\) |

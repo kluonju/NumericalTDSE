@@ -1,0 +1,39 @@
+! Exact 1D three-electron ground state in a harmonic trap + soft-Coulomb V_ee.
+! Slater of HO n=0,1,2 as the trial. Heavier than the orbital 3e job.
+! 精确一维三电子基态（谐振子 + 软库仑）。无初等解析能；E > 4.5。
+&CONTROL
+  calculation = 'ground'
+  title       = 'exact 1D 3e HO ground state (V_ee on)'
+  prefix      = 'ho_3e_exact_ground'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 10
+  L         = 6.0
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 3
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  fermion   = .true.
+  ee        = .true.
+  soft_a    = 1.0
+/
+
+&TIME
+  krylov_dim = 8
+  kinetic    = 'bs'
+  dt         = 0.02        ! heat-polish τ
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+  max_iter = 2             ! keep heat polish short on the 3D tree
+/
