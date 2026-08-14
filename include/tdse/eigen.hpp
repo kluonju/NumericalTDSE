@@ -93,11 +93,16 @@ double overlap_ho_eigen(double prec, CplxFun<D> &psi, const Parameters &p, int n
     if (p.trap != TrapKind::Harmonic || p.omega <= 0.0 || n < 0) {
         return 0.0;
     }
-    if (p.representation == Representation::Exact && p.n_electrons != 1) {
-        return 0.0;
-    }
     if (p.lambda_contact != 0.0) {
         return 0.0;
+    }
+    // Exact N-body GS is the isotropic D-dimensional Gaussian (product of 1D HO
+    // ground orbitals). Excited N-body states and interacting / fermionic
+    // cases have no elementary overlap target here.
+    if (p.representation == Representation::Exact && p.n_electrons != 1) {
+        if (n != 0 || p.ee || p.fermion) {
+            return 0.0;
+        }
     }
     CplxFun<D> ana(psi.mra);
     if constexpr (D == 1) {
