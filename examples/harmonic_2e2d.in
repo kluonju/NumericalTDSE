@@ -1,0 +1,45 @@
+! Two electrons in a 2D isotropic harmonic oscillator, exact N-body on FunctionTree<4>.
+! Configuration coordinates: (x1, y1, x2, y2). Non-interacting GS energy = 2ω.
+! Set ee = .true. for soft-Coulomb repulsion (no elementary analytic energy).
+! 4D MW trees are heavy: keep order, prec, and max_depth modest.
+&CONTROL
+  calculation = 'ground'
+  title       = '2e-2D harmonic oscillator (FunctionTree<4>)'
+  prefix      = 'harmonic_2e2d'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-2
+  order     = 3
+  max_depth = 5
+  L         = 5.0
+/
+
+&TIME
+  dt         = 0.05
+  T          = 0.20
+  propagator = 'krylov'
+  kinetic    = 'bs'
+  krylov_dim = 8
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  ee        = .false.
+  fermion   = .false.
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/

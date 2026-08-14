@@ -757,9 +757,10 @@ void finalize_parameters(Parameters &p) {
     }
     if (p.representation == Representation::Exact && !is_invert(p)) {
         const int D = mra_dimension(p);
-        if (D > 3) {
+        if (D > 4) {
             throw std::invalid_argument(
-                    "exact N-body requires electrons * dim <= 3; set mode = 'orbital' for 4 electrons");
+                    "exact N-body requires electrons * dim <= 4 (local MRCPP FunctionTree<4> patch); "
+                    "set mode = 'orbital' for larger systems");
         }
     }
     if (p.propagator == Propagator::Split && mra_dimension(p) == 1 && !p.use_legendre) {
@@ -816,14 +817,14 @@ void write_input_template(std::ostream &os) {
 &SYSTEM
   dim       = 1                   ! spatial dimension 1|2|3
   electrons = 1                   ! 1..4
-  mode      = 'exact'             ! 'exact' (N-body tree) | 'orbital'
+  mode      = 'exact'             ! 'exact' (N-body tree, D=n_e*dim<=4) | 'orbital'
   trap      = 'harmonic'          ! 'harmonic' | 'free' | 'atom'
   omega     = 1.0
   soft_a    = 1.0
   Z         = 1.0
   lambda    = 0.0                 ! orbital-mode contact interaction
   fermion   = .false.             ! Slater initial data for exact 2e/3e in 1D
-  ee        = .true.              ! exact N-body 1D soft-Coulomb V_ee
+  ee        = .true.              ! exact N-body soft-Coulomb V_ee
 /
 
 &INITIAL

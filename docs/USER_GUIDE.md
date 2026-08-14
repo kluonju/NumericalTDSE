@@ -21,7 +21,7 @@ Two representations:
 
 | `mode` | Wave function | Typical use |
 |---|---|---|
-| `exact` | One `FunctionTree<D>` with `D = electrons × dim ≤ 3` | 1D one-electron, 1D two- or three-electron, 2D/3D one-electron |
+| `exact` | One `FunctionTree<D>` with `D = electrons × dim ≤ 4` | 1D one–three electrons, 2D/3D one electron, or two electrons in 2D |
 | `orbital` | Up to 4 orbitals, each `FunctionTree<dim>` | Four electrons, or a cheap mean-field stand-in |
 
 Three time propagators: `krylov` (default), `split` (Strang), `rk4`.
@@ -288,7 +288,7 @@ Used when `calculation = 'invert'`. Two-electron interacting inversion of \(n(\m
 | `ks_only` | `.false.` | skip interacting inversion; print \(v_s,v_H,v_c\) |
 | `density_file` | empty | target density if `target = 'file'` |
 
-**1e in 4D, not 2D-in-2D.** Two electrons in 2D physical space have a wave function \(\psi(x_1,y_1,x_2,y_2)\). That is a *single* Schrödinger equation in 4D configuration space: the Laplacian is 4D and \(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) is a local 4D potential. A CI in a 2D orbital basis (“2D in 2D”) needs two-electron integrals and is truncated. MRCPP has no `FunctionTree<4>`, so inversion uses a uniform grid. The inverted object remains the physical \(v_\mathrm{ext}(x,y)\); the 4D picture is only how the ground state is solved. The 1D helium model of the paper is the same idea with \(\psi(x_1,x_2)\) on an \(N\times N\) grid.
+**1e in 4D, not 2D-in-2D.** Two electrons in 2D physical space have a wave function \(\psi(x_1,y_1,x_2,y_2)\). That is a *single* Schrödinger equation in 4D configuration space: the Laplacian is 4D and \(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) is a local 4D potential. A CI in a 2D orbital basis (“2D in 2D”) needs two-electron integrals and is truncated. Fetched MRCPP is patched locally (`cmake/patch_mrcpp_d4.py`) so `FunctionTree<4>` works for exact TDSE / ground jobs (`examples/harmonic_2e2d.in`). Inversion still uses a uniform grid: a Peirs loop on an adaptive 4D tree is a separate step. The inverted object remains the physical \(v_\mathrm{ext}(x,y)\). The 1D helium model of the paper is the same idea with \(\psi(x_1,x_2)\) on an \(N\times N\) grid.
 
 After \(v_\mathrm{ext}\) is found, the two-electron singlet KS inversion is algebraic, \(\varphi=\sqrt{n/2}\), \(v_s=(2\varphi)^{-1}\nabla^2\varphi+\mathrm{const}\), and \(v_c=v_s-\tfrac12 v_H-v_\mathrm{ext}\).
 
@@ -445,6 +445,8 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `harmonic_1d.in` | 1D coherent state, RK4 | \(\mu=\cos t\), \(E=1\), overlap |
 | `harmonic_period.in` | one period \(T=2\pi\) | \(\mu=0.5\cos t\), \(E=0.625\) |
 | `harmonic_2d.in` | 2D HO, `FunctionTree<2>` | \(\mu_x=\cos t\), \(E=1.5\) |
+| `harmonic_2e2d_smoke.in` | 2e in 2D, `FunctionTree<4>` ctest | \(E=2\) |
+| `harmonic_2e2d.in` | same, Lanczos ground | \(E=2\omega\) (non-interacting) |
 | `free_particle.in` | spreading packet | \(\mu=0\), \(E=0.25\), overlap |
 | `free_boost.in` | travelling packet | \(\mu=-0.5+t\), \(E=0.75\), overlap |
 | `laser_1d.in` | CW dipole drive | Ehrenfest \(\mu(t)\); \(E\) not conserved |
@@ -495,7 +497,8 @@ Demo inputs use a coarse grid so they finish quickly. For stationary energies se
 
 ## 12. Limits
 
-- MRCPP instantiates `FunctionTree<D>` only for \(D=1,2,3\). Four-electron exact N-body is not possible; use `mode = 'orbital'`. Two electrons in 2D (`calculation = 'invert'`) use a uniform 4D grid, not a multiwavelet tree.
+- Fetched MRCPP is patched for `FunctionTree<4>` (identity/Morton Hilbert path). Exact N-body allows \(D=\) `electrons × dim` \(\le 4\): two electrons in 2D, or four 1D electrons, on one tree. Five-or-more-dimensional exact wave functions are not available; use `mode = 'orbital'`. Two-electron inversion (`calculation = 'invert'`) still uses a uniform configuration-space grid.
+- 4D trees are heavy: \((k+1)^4\) scaling coefficients per node and 16 children. Keep `order`, `prec`, and `max_depth` modest. Imaginary-time `method = 'itp'` is disabled at \(D=4\) (4D heat-kernel convolution).
 - Inversion is accurate only where the density is not tiny (TGK08: treat \(n\gtrsim 10^{-2}\) as safe). The additive constant in \(v_\mathrm{ext}\) is fixed by matching at the density peak.
 - `TimeEvolutionOperator` is 1D Legendre only (`τ = Δt/2` because the library stores \(\exp(i\tau\partial_x^2)=\exp(-i T\Delta t)\)).
 - Contact \(\lambda\rho\) is not a Coulomb Hartree potential.

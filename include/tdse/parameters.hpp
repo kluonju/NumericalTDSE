@@ -17,7 +17,7 @@ enum class KineticKind {
 };
 
 enum class Representation {
-    Exact,  ///< Full N-body wave function on FunctionTree<D>, D = n_e * dim ≤ 3
+    Exact,  ///< Full N-body wave function on FunctionTree<D>, D = n_e * dim ≤ 4
     Orbital ///< Up to 4 orbitals, each a FunctionTree<spatial_dim>
 };
 

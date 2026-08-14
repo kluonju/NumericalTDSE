@@ -1,0 +1,37 @@
+! Tiny 4D FunctionTree smoke: two non-interacting 2D HO electrons.
+! Configuration space is (x1,y1,x2,y2). Non-interacting GS energy is 2ω = 2.
+! Keep order / max_depth small: (k+1)^4 scaling coefficients per node.
+&CONTROL
+  calculation = 'tdse'
+  title       = '2e-2D HO FunctionTree<4> smoke'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 2.0d-2
+  order     = 3
+  max_depth = 4
+  L         = 4.0
+/
+
+&TIME
+  dt         = 0.05
+  T          = 0.05
+  propagator = 'rk4'
+  krylov_dim = 6
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  ee        = .false.
+  fermion   = .false.
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/

@@ -18,6 +18,8 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `harmonic_1d.in` | 1D HO coherent state | 一维谐振子相干态 | \(\mu=\cos t\), \(E=1\), overlap |
 | `harmonic_period.in` | one HO period \(T=2\pi\) | 一个振荡周期 | \(\mu=0.5\cos t\), \(E=0.625\) |
 | `harmonic_2d.in` | 2D HO | 二维谐振子 | \(\mu_x=\cos t\), \(E=1.5\) |
+| `harmonic_2e2d_smoke.in` | 2e in 2D on `FunctionTree<4>` | 二维双电子 4 维树短跑 | \(E=2\) |
+| `harmonic_2e2d.in` | same, Lanczos ground | 同上，Lanczos 基态 | \(E=2\omega\) |
 | `free_particle.in` | spreading free Gaussian | 自由高斯扩散 | \(\mu=0\), \(E=\alpha/4\), overlap |
 | `free_boost.in` | travelling free Gaussian | 带初动量的自由高斯 | \(\mu=x_0+k_0 t\), \(E=0.75\) |
 | `laser_1d.in` | CW dipole-driven HO | 连续激光驱动 | Ehrenfest \(\mu(t)\) |

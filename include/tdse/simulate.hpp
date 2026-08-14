@@ -354,8 +354,10 @@ inline int run(const Parameters &p) {
             return simulate_exact<2>(p);
         case 3:
             return simulate_exact<3>(p);
+        case 4:
+            return simulate_exact<4>(p);
         default:
-            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2 or 3");
+            throw std::invalid_argument("exact N-body MRA dimension must be 1, 2, 3 or 4");
     }
 }
 

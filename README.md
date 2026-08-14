@@ -25,10 +25,11 @@ mindmap
       Init displaced Gaussian
     Representation
       Exact N-body tree
-        1D electrons N at most 3
-        FunctionTree of dim N
+        D = n_e times dim at most 4
+        FunctionTree of dim D
         Soft Coulomb
         Optional fermion 2e
+        2e in 2D as FunctionTree 4
       Density invert
         TGK08 Peirs v_ext of n
         2e in 1D paper
@@ -108,8 +109,8 @@ i\,\partial_t\psi = \hat H(t)\,\psi,\qquad
 
 - **动能** \(T=-\frac12\nabla^2\)：默认用 MRCPP 推荐的 `ABGVOperator` 沿每个坐标方向作用两次；可选 `BSOperator` 或卷积形式的 `DerivativeConvolution`。
 - **势能**：继承 `RepresentableFunction<D>`，每步 `project` 到 `FunctionTree`，再与波函数做 MW 乘法。含时激光取偶极近似 \(-E(t)\,x\)。
-- **精确 N 体**（`mode = 'exact'`）：把 \(N\) 个 1D 电子写成一张 `FunctionTree<N>`（\(N\le 3\)，因为 MRCPP 显式实例化 D=1,2,3）。电子间软库仑 \(1/\sqrt{(x_i-x_j)^2+a^2}\)。
-- **密度反演**（`calculation = 'invert'`）：两电子相互作用基态的 \(n\to v_\mathrm{ext}\)（Thiele–Gross–Kümmel / Peirs）。一维双电子与论文相同，波函数在 \(N\times N\) 格子上；二维双电子把 \(\psi(x_1,y_1,x_2,y_2)\) 当成 **4 维组态空间中的单粒子**（MRCPP 没有 `FunctionTree<4>`）。这比在二维轨道基里做 CI（“2D in 2D”）更直接：\(W(|r_1-r_2|)\) 是 4D 局域势，不必算双电子积分。
+- **精确 N 体**（`mode = 'exact'`）：\(D=n_e\times\mathrm{dim}\le 4\) 的一张 `FunctionTree<D>`（Fetch 的 MRCPP 经 `cmake/patch_mrcpp_d4.py` 补丁后支持 D=4）。一维最多四电子，或二维双电子 \(\psi(x_1,y_1,x_2,y_2)\)。电子间软库仑 \(1/\sqrt{|r_i-r_j|^2+a^2}\)。
+- **密度反演**（`calculation = 'invert'`）：两电子相互作用基态的 \(n\to v_\mathrm{ext}\)（Thiele–Gross–Kümmel / Peirs）。一维双电子与论文相同，波函数在 \(N\times N\) 格子上；二维双电子把 \(\psi(x_1,y_1,x_2,y_2)\) 当成 **4 维组态空间中的单粒子**。精确 TDSE/基态可走 `FunctionTree<4>`（`examples/harmonic_2e2d.in`）；反演循环仍用均匀网格。这比在二维轨道基里做 CI（“2D in 2D”）更直接：\(W(|r_1-r_2|)\) 是 4D 局域势，不必算双电子积分。
 - **轨道平均场**（`mode = 'orbital'`）：最多 4 个轨道，每个是 `FunctionTree<dim>`，可选接触相互作用 \(\lambda\rho(\mathbf r)\)。四电子 3D 只能走这条路（12 维全波函数无法用 MW 表示）。
 
 传播子：
@@ -275,6 +276,6 @@ examples/             namelist 算例、解析对照与画图脚本
 
 - 哈密顿量使用标准量子化学原子单位 \(T=-\frac12\nabla^2\)。MRCPP 的 `TimeEvolutionOperator` 表示 \(\exp(i\tau\partial_x^2)\)，因此传入 \(\tau=\Delta t/2\)。
 - 该算子目前只实现于 **1D Legendre** 缩放函数。
-- MRCPP 对 `FunctionTree<D>` 显式实例化 D=1,2,3。四电子精确波函数请用 `mode = 'orbital'`。二维双电子的**精确**反演走 `calculation = 'invert'`（4D 均匀网格），不要指望 `FunctionTree<4>`。
+- Fetch 的 MRCPP 经 `cmake/patch_mrcpp_d4.py` 补丁后支持 `FunctionTree<4>`。精确 N 体 \(D=n_e\times\mathrm{dim}\le 4\)。更高维请用 `mode = 'orbital'`。二维双电子的**反演**仍走 `calculation = 'invert'`（4D 均匀网格）。
 - MPI 不能把一张精确 N 体树拆开；多节点请用 `mode = 'orbital'`。
 - 默认演示参数偏向“能跑完”，要定量结果请把 `prec` 降到 `1d-5`–`1d-6` 并减小 `dt`。
