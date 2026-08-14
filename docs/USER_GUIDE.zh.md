@@ -128,8 +128,8 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 这是三维自适应树，`prec` 要粗、\(T\) 要短。`fermion = .true.` 用 HO 轨道 \(n=0,1,2\) 的 Slater 行列式（无相互作用基态，也是有相互作用时的好初猜）。没有初等解析能；排斥使 \(E\) 高于 \(4.5\,\omega\)。
 
 ```bash
-./build/bin/tdse examples/ho_3e_exact.in            # 短时 TDSE
-./build/bin/tdse examples/ho_3e_exact_ground.in     # Lanczos 基态
+./build/bin/tdse examples/ho_3e_exact.in            # 短时 TDSE（推荐）
+./build/bin/tdse examples/ho_3e_exact_ground.in     # 可选 Lanczos；三维树，占内存
 ```
 
 ```fortran
@@ -424,7 +424,7 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `orbitals_3e_ground.in` | 三谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
 | `orbitals_3e.in` | 三轨道实时 | 无；适合 MPI |
 | `ho_3e_exact.in` | 精确一维三电子 + \(V_{ee}\) | 看 \(\\|\psi\\|\)，\(E>4.5\) |
-| `ho_3e_exact_ground.in` | 精确三电子相互作用基态 | 残差；\(E>4.5\) |
+| `ho_3e_exact_ground.in` | 精确三电子相互作用基态（占内存） | 残差；\(E>4.5\) |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
 | `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
 | `ground_1d.in` | 谐振子基态，Lanczos + BS | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |

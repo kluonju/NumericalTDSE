@@ -128,8 +128,8 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 This is a 3D adaptive tree — keep `prec` coarse and \(T\) short. `fermion = .true.` loads a Slater determinant of HO orbitals \(n=0,1,2\) (the non-interacting ground state, a good interacting trial). There is no elementary analytic energy; repulsion pushes \(E\) above \(4.5\,\omega\).
 
 ```bash
-./build/bin/tdse examples/ho_3e_exact.in            # short TDSE
-./build/bin/tdse examples/ho_3e_exact_ground.in     # Lanczos ground state
+./build/bin/tdse examples/ho_3e_exact.in            # short TDSE (recommended)
+./build/bin/tdse examples/ho_3e_exact_ground.in     # optional Lanczos; 3D tree, high RAM
 ```
 
 ```fortran
@@ -424,7 +424,7 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `orbitals_3e_ground.in` | 3 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5,2.5\) |
 | `orbitals_3e.in` | 3-orbital HO TDSE | none; MPI-friendly |
 | `ho_3e_exact.in` | exact 1D 3e HO + \(V_{ee}\) | watch \(\\|\psi\\|\) and \(E>4.5\) |
-| `ho_3e_exact_ground.in` | exact 1D 3e interacting GS | residual; \(E>4.5\) |
+| `ho_3e_exact_ground.in` | exact 1D 3e interacting GS (high RAM) | residual; \(E>4.5\) |
 | `orbitals_smoke.in` | MPI ctest | tiny orbital RK4 |
 | `ground_smoke.in` | Lanczos HO ground (ctest) | \(E=0.5\) |
 | `ground_1d.in` | HO ground, Lanczos + BS | \(E=0.5\), \(\psi_0\), \(\mu=0\) |
