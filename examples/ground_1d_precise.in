@@ -1,0 +1,39 @@
+! Tighter 1D HO ground state: B-spline kinetic, order 9, prec 1e-5.
+! Expect |E − 1/2| ~ 10^{-5} and overlap with ψ_0 > 0.99999.
+! 更高精度谐振子基态。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D HO ground state (precise)'
+  prefix      = 'ground_1d_precise'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-5
+  order = 9
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 20
+  kinetic    = 'bs'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.4
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
+
+&OUTPUT
+  plot = 'ground_1d_precise'
+/

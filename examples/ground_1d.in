@@ -1,6 +1,7 @@
-! 1D harmonic-oscillator ground state (Lanczos / Ritz).
+! 1D harmonic-oscillator ground state (Lanczos / Ritz + heat polish).
 ! Analytic: E_0 = ω/2 = 0.5,  ψ_0 ∝ exp(−ω x² / 2),  ⟨x⟩ = 0.
-! 一维谐振子基态。解析：E = 1/2，偶宇称高斯。
+! kinetic='bs' is the right derivative for this smooth eigenfunction.
+! 一维谐振子基态。解析：E = 1/2。平滑本征态用 B-spline 动能。
 &CONTROL
   calculation = 'ground'
   title       = '1D HO ground state vs ψ_0'
@@ -16,6 +17,7 @@
 
 &TIME
   krylov_dim = 12
+  kinetic    = 'bs'
 /
 
 &SYSTEM

@@ -6,9 +6,10 @@
  * Linear H (exact N-body, or orbitals with λ = 0)
  *   Lanczos — default; ground state from a Krylov space of H, keeping the
  *             Ritz vector that overlaps the smooth trial (the MW kinetic
- *             operator is not bounded below). Excited states use a
- *             nodal/Hermite guess plus a few imaginary-time RK4 steps in
- *             the orthogonal complement.
+ *             operator is not bounded below). A few heat-kernel imag-time
+ *             steps then strip high-frequency junk from ⟨H⟩. Excited states
+ *             use a nodal/Hermite guess plus the same heat polish in the
+ *             orthogonal complement.
  *   ITP     — Strang imag-time: exp(−Vτ/2) exp(−Tτ) exp(−Vτ/2) with the
  *             MRCPP heat kernel exp((τ/2)∇²) (smoothing). Gram–Schmidt
  *             for excited states. Krylov/RK4 of the MW Hamiltonian is
@@ -39,6 +40,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -251,58 +253,66 @@ std::vector<EigenPair<D>> lanczos_lowest(double prec,
 
     const double e_floor = energy_floor(p);
 
-    struct Cand {
-        int k = 0;
-        double q0 = 0.0;
-        EigenPair<D> ep;
-    };
-    std::vector<Cand> cands;
-    cands.reserve(static_cast<std::size_t>(m_eff));
-    for (int k = 0; k < m_eff; ++k) {
-        Cand c;
-        c.k = k;
-        c.q0 = std::abs(Q(0, k));
-        c.ep.psi = std::make_unique<CplxFun<D>>(trial.mra);
-        copy_into(*c.ep.psi, trial);
-        Eigen::VectorXcd coeff = Q.col(k).cast<std::complex<double>>();
-        reconstruct_cplx(prec, *c.ep.psi, v, coeff);
-        crop(*c.ep.psi, prec);
-        if (norm(*c.ep.psi) <= 0.0) {
-            continue;
+    std::vector<int> order(static_cast<std::size_t>(m_eff));
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        return std::abs(Q(0, a)) > std::abs(Q(0, b));
+    });
+
+    {
+        std::stringstream ss;
+        ss << "  Lanczos |Q(0,k)| vs T-Ritz:";
+        println(0, ss.str());
+        const int nshow = std::min(m_eff, 6);
+        for (int i = 0; i < nshow; ++i) {
+            const int k = order[static_cast<std::size_t>(i)];
+            std::stringstream line;
+            line << std::scientific << std::setprecision(6) << "    k=" << k << "  |Q0|=" << std::abs(Q(0, k))
+                 << "  T-Ritz=" << Teval(k);
+            println(0, line.str());
         }
-        normalize(*c.ep.psi);
-        orthogonalize(prec, *c.ep.psi, deflate);
-        if (norm(*c.ep.psi) <= 0.0) {
-            continue;
-        }
-        normalize(*c.ep.psi);
-        fill_pair_observables(prec, c.ep, ops, V, p, 0);
-        cands.push_back(std::move(c));
     }
 
-    std::sort(cands.begin(), cands.end(), [](const Cand &a, const Cand &b) { return a.q0 > b.q0; });
     EigenPair<D> best;
     bool have = false;
-    for (auto &c : cands) {
-        if (c.ep.energy < e_floor) {
+    double picked_q0 = 0.0;
+    double picked_teval = 0.0;
+    for (int k : order) {
+        if (Teval(k) < e_floor) {
             continue;
         }
-        best = std::move(c.ep);
+        best.psi = std::make_unique<CplxFun<D>>(trial.mra);
+        copy_into(*best.psi, trial);
+        Eigen::VectorXcd coeff = Q.col(k).cast<std::complex<double>>();
+        reconstruct_cplx(prec, *best.psi, v, coeff);
+        crop(*best.psi, prec);
+        if (norm(*best.psi) <= 0.0) {
+            continue;
+        }
+        normalize(*best.psi);
+        orthogonalize(prec, *best.psi, deflate);
+        if (norm(*best.psi) <= 0.0) {
+            continue;
+        }
+        normalize(*best.psi);
+        fill_pair_observables(prec, best, ops, V, p, 0);
+        if (best.energy < e_floor) {
+            continue;
+        }
+        picked_q0 = std::abs(Q(0, k));
+        picked_teval = Teval(k);
         have = true;
         break;
     }
-    if (!have && !cands.empty()) {
-        best = std::move(cands.front().ep);
-        have = true;
-    }
     if (!have) {
-        throw std::runtime_error("Lanczos failed to reconstruct a Ritz vector");
+        throw std::runtime_error("Lanczos failed to reconstruct a physical Ritz vector");
     }
+    println(0,
+            "  selected |Q0|=" << picked_q0 << "  T-Ritz=" << picked_teval << "  ⟨H⟩=" << best.energy);
 
     std::vector<EigenPair<D>> out;
     out.push_back(std::move(best));
     (void)n_states;
-    (void)Teval;
     return out;
 }
 
@@ -336,6 +346,28 @@ void project_eigen_guess(double prec, CplxFun<D> &psi, const Parameters &p, int 
 }
 
 template <int D>
+void heat_polish(double prec,
+                 CplxFun<D> &psi,
+                 OperatorSet<D> &ops,
+                 mrcpp::FunctionTree<D> &V,
+                 mrcpp::HeatOperator<D> &heat,
+                 double dt,
+                 int nsteps,
+                 const std::vector<CplxFun<D> *> &deflate) {
+    for (int s = 0; s < nsteps; ++s) {
+        orthogonalize(prec, psi, deflate);
+        step_split_imag(prec, psi, ops, V, dt, &heat);
+        crop(psi, prec);
+        if (norm(psi) < 1.0e-18) {
+            throw std::runtime_error("heat polish collapsed the wave function; decrease polish τ");
+        }
+        normalize(psi);
+        orthogonalize(prec, psi, deflate);
+        normalize(psi);
+    }
+}
+
+template <int D>
 std::vector<EigenPair<D>> lanczos_spectrum(double prec,
                                            OperatorSet<D> &ops,
                                            mrcpp::FunctionTree<D> &V,
@@ -344,7 +376,9 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
     ApplyOp<D> H = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_hamiltonian(prec, out, ops, in, V); };
     std::vector<EigenPair<D>> pairs;
     std::vector<CplxFun<D> *> defs;
-    const int polish = std::min(4, p.eigen_maxiter);
+    const double tau = std::min(0.10, std::max(p.dt, 0.02));
+    const int polish = std::min(8, std::max(2, p.eigen_maxiter));
+    mrcpp::HeatOperator<D> heat(ops.mra, 0.5 * tau, prec);
     for (int k = 0; k < n_states; ++k) {
         CplxFun<D> trial(ops.mra);
         project_eigen_guess(prec, trial, p, k);
@@ -355,21 +389,11 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
             if (one.empty()) {
                 throw std::runtime_error("Lanczos returned no state");
             }
-            one[0].overlap = overlap_ho_eigen(prec, *one[0].psi, p, k);
+            heat_polish(prec, *one[0].psi, ops, V, heat, tau, polish, defs);
+            fill_pair_observables(prec, one[0], ops, V, p, k);
             pairs.push_back(std::move(one[0]));
         } else {
-            // Higher states: imag-time polish in the orthogonal complement.
-            // A large Krylov space of the MW kinetic operator is not bounded below.
-            // RK4 with a large τ is unstable, so cap the polish step.
-            const double tau = std::min(p.dt, 0.05);
-            for (int s = 0; s < polish; ++s) {
-                orthogonalize(prec, trial, defs);
-                step_rk4_imag(prec, trial, ops, V, tau);
-                crop(trial, prec);
-                normalize(trial);
-            }
-            orthogonalize(prec, trial, defs);
-            normalize(trial);
+            heat_polish(prec, trial, ops, V, heat, tau, polish, defs);
             EigenPair<D> ep;
             ep.psi = std::make_unique<CplxFun<D>>(ops.mra);
             copy_into(*ep.psi, trial);

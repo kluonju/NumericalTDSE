@@ -1,0 +1,38 @@
+! Four lowest 1D HO states at tighter MRA (BS kinetic, order 9, prec 1e-5).
+! 更高精度最低四态。
+&CONTROL
+  calculation = 'eigen'
+  title       = '1D HO lowest four (precise)'
+  prefix      = 'eigen_1d_precise'
+  ident_check = .false.
+  n_states    = 4
+/
+
+&MRA
+  prec  = 1.0d-5
+  order = 9
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 20
+  kinetic    = 'bs'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.7
+/
+
+&EIGEN
+  method = 'lanczos'
+/
+
+&OUTPUT
+  plot = 'eigen_1d_precise'
+/

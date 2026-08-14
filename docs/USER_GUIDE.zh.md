@@ -70,7 +70,7 @@ python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omeg
 
 ```bash
 ./build/bin/tdse examples/ground_1d.in
-python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 0.05 --tol-overlap 0.99
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-4 --tol-overlap 0.999
 python3 examples/plot_observables.py ground_1d_observables.csv
 python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
 ```
@@ -141,7 +141,7 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 | `dt` | 0.02 | 时间步 |
 | `T` | 0.40 | 终止时间 |
 | `propagator` | `'krylov'` | `'krylov'` / `'split'` / `'rk4'` |
-| `kinetic` | `'abgv'` | `'abgv'` / `'bs'` / `'dconv'` |
+| `kinetic` | `'abgv'` | `'abgv'` / `'bs'` / `'dconv'`。求平滑束缚态能量时用 `'bs'` |
 | `krylov_dim` | 12 | Lanczos 子空间维数 |
 | `teo_scale` | 8 | `TimeEvolutionOperator` 最细尺度 |
 
@@ -211,7 +211,7 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 - **`L`**：波包不要碰到 \(\pm L\)。自由高斯会扩散、会飞走，盒子要加大（`free_boost.in` 用 `L = 12`）。
 - **`dt`**：RK4 不正交，步长宜小，或开 `renormalize`。Krylov 更接近幺正。1D 动能用 `split` + TEO 很自然。
 - **`propagator`**：任意维默认 Krylov。1D `split` 会自动改用 Legendre 基。
-- **定态**：`lanczos` 从 \(H\) 的 Krylov 空间取基态（重叠不够就加大 `krylov_dim`）；激发态用带节点的初猜再加几步虚时 RK4。`itp` 把 `dt`、`T` 当作虚时，用 Strang 劈裂：动能一步是 MRCPP 热核 \(\exp((\tau/2)\nabla^2)\)（平滑），而不是无下界的多小波动能的 Krylov 指数。轨道模式且 \(\lambda\neq 0\) 时，外层再套一层 SCF。
+- **定态**：`lanczos` 从 \(H\) 的 Krylov 空间取基态（重叠不够就加大 `krylov_dim`），再用几步热核虚时去掉高频污染。激发态用带节点的初猜加同样的热核打磨。平滑束缚态能量请设 `kinetic = 'bs'`（B-spline 导数）。`itp` 把 `dt`、`T` 当作虚时，用 Strang 劈裂：动能一步是 MRCPP 热核 \(\exp((\tau/2)\nabla^2)\)。轨道模式且 \(\lambda\neq 0\) 时，外层再套一层 SCF。
 
 ### 基态与最低本征态
 
@@ -220,7 +220,19 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 - **`calculation = 'ground'`** — 最低态（若写了 `n_states` 则求最低若干态）。
 - **`calculation = 'eigen'`** — 若干最低态（精确模式默认 4 个）。
 
-**Lanczos（默认）。** 从光滑初猜建 \(H\) 的 Krylov 空间。多小波动能算子没有下界，代数上最小的 Ritz 值是虚假模；物理态是与初猜重叠最大的 Ritz 向量。基态这样求。更高的态用带节点的（Hermite）初猜，并在正交补里做几步虚时 RK4。\(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) 是对多小波算子的残差（即使 \(|\langle\psi_\mathrm{num}|\psi_n\rangle|>0.99\)，残差仍可能偏大）。
+**Lanczos（默认）。** 从光滑初猜建 \(H\) 的 Krylov 空间。多小波动能算子没有下界，代数上最小的 Ritz 值是虚假模；物理态是与初猜重叠最大的 Ritz 向量。随后用几步热核虚时去掉会拉动 \(\langle H\rangle\) 的高频成分。更高的态用带节点的（Hermite）初猜，并在正交补里做同样的热核打磨。
+
+一维谐振子 \(E_n=\omega(n+1/2)\) 可以系统逼近，但需要收紧 MRA **并且** 使用 `kinetic = 'bs'`：
+
+| 输入 | `prec` | order | kinetic | \(\max\|E-E_n\|\) | 最小重叠 |
+|---|---|---|---|---|---|
+| `ground_1d.in` | \(10^{-4}\) | 7 | bs | \(4.5\times10^{-6}\) | \(0.999999\) |
+| `eigen_1d.in`（4 态） | \(10^{-4}\) | 7 | bs | \(1.3\times10^{-5}\) | \(0.999998\) |
+| `ground_1d_precise.in` | \(10^{-5}\) | 9 | bs | \(1.3\times10^{-7}\) | \(1-6\times10^{-9}\) |
+| `eigen_1d_precise.in`（4 态） | \(10^{-5}\) | 9 | bs | \(1.1\times10^{-5}\) | \(0.999998\) |
+| 基态，`order=9`，`prec=1d-6` | \(10^{-6}\) | 9 | bs | \(1.8\times10^{-6}\) | \(0.9999997\) |
+
+`kinetic = 'abgv'` 把 `prec` 收紧时 \(\langle H\rangle\) **不会**变好：更多小波尺度会解析出更多虚假动能模。与 \(\psi_n\) 的重叠仍可 \(>0.99\)，但 \(\langle H\rangle\) 能差 \(10^{-2}\)。MW 残差即使重叠和 \(\Delta E\) 已经很好也可能偏大；精度请看后两者。
 
 **虚时。** 令 \(t=-i\tau\)，则 \(\partial_\tau\psi=-H\psi\)。高能成分衰减，每步归一化。激发态按顺序求，并用 Gram–Schmidt 正交。`n_states = 1` 时 CSV 是 \(E(\tau)\) 历史（列与 TDSE 相同）。多态或 Lanczos 写出谱文件（`state,energy,residual,…`）。虚时动能用热半群 \(\exp(-T\tau)=\exp((\tau/2)\nabla^2)\)；不用 MW 哈密顿的 Krylov/RK4，因为那个算符没有下界。收敛看 \(|\Delta E|\)，不以 MW 残差为准。
 
@@ -346,14 +358,16 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `orbitals_4e.in` | 四轨道 + \(\lambda\rho\) | 无；最多 4 个 MPI rank |
 | `orbitals_smoke.in` | MPI ctest | 轨道短跑 |
 | `ground_smoke.in` | Lanczos 谐振子基态（ctest） | \(E=0.5\) |
-| `ground_1d.in` | 谐振子基态，Lanczos | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |
+| `ground_1d.in` | 谐振子基态，Lanczos + BS | \(E=0.5\)，\(\psi_0\)，\(\mu=0\) |
 | `eigen_1d.in` | 最低四态 | \(E_n=n+1/2\)，Hermite 重叠 |
+| `ground_1d_precise.in` | 更高精度基态 | \(\lvert\Delta E\rvert\sim10^{-7}\) |
+| `eigen_1d_precise.in` | 更高精度四态 | \(\lvert\Delta E\rvert\sim10^{-5}\) |
 | `ground_itp.in` | 虚时求基态 | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 一维软库仑基态 | 只看残差 |
 | `orbitals_ground.in` | 两谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | 精确一维双电子基态 | 只看残差 |
 
-演示输入网格较粗，为了尽快跑完。正式计算请把 `prec` 降到 `1d-5`–`1d-6` 并减小 `dt`。
+演示输入网格较粗，为了尽快跑完。定态能量请用 `kinetic = 'bs'`，并把 `prec` 降到 `1d-5`–`1d-6`（见 `ground_1d_precise.in`）。
 
 ---
 
@@ -368,7 +382,8 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `split` 启动很慢 | 在构造 TEO；测试时 `T` 保持很短 |
 | MPI 不能加速谐振子 | 正常：精确模式只有一棵树；用 OpenMP 或 `mode = 'orbital'` |
 | 缺少奇宇称谐振子态 | 把 `x0` 设成非零，初猜不要取偶函数 |
-| 残差降不下去 | 加大 `krylov_dim`、减小 `prec`、加大 `L` |
+| 残差降不下去 | 加大 `krylov_dim`、减小 `prec`、加大 `L`；能量请看重叠 / \(\Delta E\) |
+| 重叠已经很高但能量对不上 | 平滑束缚态用 `kinetic = 'bs'`；收紧 `prec` 并不能改善 ABGV 的 \(\langle H\rangle\) |
 | 虚时能量掉到 −∞ | 多小波动能没有下界；ITP 应走热核。若仍出现请确认二进制已重编 |
 | 画不出图 | `pip install matplotlib`；在含 `.csv` / `.line` 的目录下运行 |
 

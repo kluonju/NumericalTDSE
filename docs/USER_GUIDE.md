@@ -70,7 +70,7 @@ Ground state of the same oscillator (`E_0 = 1/2`):
 
 ```bash
 ./build/bin/tdse examples/ground_1d.in
-python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 0.05 --tol-overlap 0.99
+python3 examples/compare_analytic.py ground_1d_observables.csv --tol-energy 1e-4 --tol-overlap 0.999
 python3 examples/plot_observables.py ground_1d_observables.csv
 python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omega 1
 ```
@@ -141,7 +141,7 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 | `dt` | 0.02 | time step |
 | `T` | 0.40 | final time |
 | `propagator` | `'krylov'` | `'krylov'` / `'split'` / `'rk4'` |
-| `kinetic` | `'abgv'` | `'abgv'` / `'bs'` / `'dconv'` |
+| `kinetic` | `'abgv'` | `'abgv'` / `'bs'` / `'dconv'`. Use `'bs'` for smooth bound-state energies |
 | `krylov_dim` | 12 | Lanczos subspace size |
 | `teo_scale` | 8 | `TimeEvolutionOperator` finest scale |
 
@@ -211,7 +211,7 @@ Laser field must be off (`E0 = 0`). For several HO states, use a **non-even** tr
 - **`L`**: the packet must stay away from \(\pm L\). Free packets spread and travel; enlarge the box (`free_boost.in` uses `L = 12`).
 - **`dt`**: RK4 is not unitary — use a smaller step or `renormalize`. Krylov is closer to unitary. Split + TEO is natural for 1D free kinetic evolution.
 - **`propagator`**: Krylov is the default for any dimension. `split` in 1D switches the basis to Legendre automatically.
-- **Stationary**: `lanczos` takes the ground state from a Krylov space of \(H\) (increase `krylov_dim` if the overlap is poor); higher states use a nodal guess plus a few imag-time RK4 steps. `itp` uses `dt` and `T` as imaginary time with a Strang split: the kinetic piece is the MRCPP heat kernel \(\exp((\tau/2)\nabla^2)\) (smoothing), not a Krylov exponential of the unbounded MW kinetic operator. Orbital jobs with \(\lambda\neq 0\) wrap an SCF around the inner solver.
+- **Stationary**: `lanczos` takes the ground state from a Krylov space of \(H\) (increase `krylov_dim` if the overlap is poor); a few heat-kernel imag-time steps then strip high-frequency junk from \(\langle H\rangle\). Higher states use a nodal guess plus the same heat polish. For energies of smooth bound states set `kinetic = 'bs'` (B-spline derivative). `itp` uses `dt` and `T` as imaginary time with a Strang split: the kinetic piece is the MRCPP heat kernel \(\exp((\tau/2)\nabla^2)\). Orbital jobs with \(\lambda\neq 0\) wrap an SCF around the inner solver.
 
 ### Ground state and lowest eigenstates
 
@@ -220,7 +220,19 @@ The Hamiltonian is the same as in a TDSE run (trap + optional \(e\)–\(e\), no 
 - **`calculation = 'ground'`** — lowest state (or `n_states` lowest if you set it).
 - **`calculation = 'eigen'`** — several lowest states (default 4 in exact mode).
 
-**Lanczos (default).** Builds a Krylov space of \(H\) from a smooth trial. Because the multiwavelet kinetic operator is not bounded below, the algebraically smallest Ritz value is a spurious mode; the physical state is the Ritz vector that overlaps the trial. The ground state is obtained this way. Higher states use a nodal (Hermite) guess and a few imaginary-time RK4 steps in the orthogonal complement. Reports \(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) against the MW operator (this residual can stay large even when \(|\langle\psi_\mathrm{num}|\psi_n\rangle|\) is \(>0.99\)).
+**Lanczos (default).** Builds a Krylov space of \(H\) from a smooth trial. Because the multiwavelet kinetic operator is not bounded below, the algebraically smallest Ritz value is a spurious mode; the physical state is the Ritz vector that overlaps the trial. A few heat-kernel imag-time steps then smooth high-frequency contamination that would otherwise shift \(\langle H\rangle\). Higher states use a nodal (Hermite) guess and the same heat polish in the orthogonal complement.
+
+On the 1D HO, \(E_n=\omega(n+1/2)\) is recovered systematically if you tighten the MRA **and** use `kinetic = 'bs'`:
+
+| Input | `prec` | order | kinetic | \(\max\|E-E_n\|\) | min overlap |
+|---|---|---|---|---|---|
+| `ground_1d.in` | \(10^{-4}\) | 7 | bs | \(4.5\times10^{-6}\) | \(0.999999\) |
+| `eigen_1d.in` (4 states) | \(10^{-4}\) | 7 | bs | \(1.3\times10^{-5}\) | \(0.999998\) |
+| `ground_1d_precise.in` | \(10^{-5}\) | 9 | bs | \(1.3\times10^{-7}\) | \(1-6\times10^{-9}\) |
+| `eigen_1d_precise.in` (4 states) | \(10^{-5}\) | 9 | bs | \(1.1\times10^{-5}\) | \(0.999998\) |
+| ground, `order=9`, `prec=1d-6` | \(10^{-6}\) | 9 | bs | \(1.8\times10^{-6}\) | \(0.9999997\) |
+
+`kinetic = 'abgv'` does **not** improve \(\langle H\rangle\) when `prec` is tightened: more wavelet scales resolve more spurious kinetic modes. Overlap with \(\psi_n\) can still be \(>0.99\) while \(\langle H\rangle\) is off by \(10^{-2}\). The MW residual \(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) can stay large even when the overlap and \(\Delta E\) are tight; prefer those two as the accuracy metric.
 
 **Imaginary time.** Substitute \(t=-i\tau\) so \(\partial_\tau\psi=-H\psi\). High-energy components decay; after each step the wave function is renormalized. Excited states are obtained sequentially with Gram–Schmidt. For `n_states = 1` the CSV is an \(E(\tau)\) history (same columns as TDSE). For several states, or for Lanczos, the CSV is a spectrum (`state,energy,residual,…`). The imag-time kinetic step is the heat semigroup \(\exp(-T\tau)=\exp((\tau/2)\nabla^2)\); Krylov/RK4 on the MW Hamiltonian is not used because that operator is unbounded below. Convergence is on \(|\Delta E|\), not the MW residual.
 
@@ -346,14 +358,16 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | none; up to 4 MPI ranks |
 | `orbitals_smoke.in` | MPI ctest | tiny orbital RK4 |
 | `ground_smoke.in` | Lanczos HO ground (ctest) | \(E=0.5\) |
-| `ground_1d.in` | HO ground, Lanczos | \(E=0.5\), \(\psi_0\), \(\mu=0\) |
+| `ground_1d.in` | HO ground, Lanczos + BS | \(E=0.5\), \(\psi_0\), \(\mu=0\) |
 | `eigen_1d.in` | four lowest HO states | \(E_n=n+1/2\), Hermite overlap |
+| `ground_1d_precise.in` | tighter HO ground | \(\lvert\Delta E\rvert\sim10^{-7}\) |
+| `eigen_1d_precise.in` | tighter four HO states | \(\lvert\Delta E\rvert\sim10^{-5}\) |
 | `ground_itp.in` | HO ground by imaginary time | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 1D soft-Coulomb ground | residual only |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | exact 1D 2e ground | residual only |
 
-Demo inputs use a coarse grid so they finish quickly. For production, lower `prec` to `1d-5`–`1d-6` and shrink `dt`.
+Demo inputs use a coarse grid so they finish quickly. For stationary energies set `kinetic = 'bs'` and lower `prec` to `1d-5`–`1d-6` (see `ground_1d_precise.in`). For real-time work, also shrink `dt`.
 
 ---
 
@@ -368,7 +382,8 @@ Demo inputs use a coarse grid so they finish quickly. For production, lower `pre
 | `split` is slow to start | TEO construction; keep `T` short in tests |
 | MPI does not speed up HO | expected: exact mode is one tree; use OpenMP or `mode = 'orbital'` |
 | odd HO states missing | set `x0 ≠ 0` so the trial is not even |
-| residual stays large | increase `krylov_dim`, tighten `prec`, enlarge `L` |
+| residual stays large | increase `krylov_dim`, tighten `prec`, enlarge `L`; for energies prefer overlap / \(\Delta E\) |
+| \(E\) far from analytic while overlap is high | set `kinetic = 'bs'` for smooth bound states; ABGV \(\langle H\rangle\) does not improve with tighter `prec` |
 | ITP energy runs to −∞ | the MW kinetic operator is unbounded below; ITP uses the heat kernel. Rebuild if you still have an old binary |
 | empty plots | `pip install matplotlib`; run from the directory that contains the `.csv` / `.line` files |
 
