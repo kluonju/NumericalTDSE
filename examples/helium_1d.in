@@ -1,7 +1,16 @@
-! Exact 1D two-electron TDSE on FunctionTree<2>, soft-Coulomb atom.
+! Exact 1D two-electron TDSE on FunctionTree<2>, soft-Coulomb atom + 1/sqrt((x1-x2)²+a²).
+! 精确一维双电子（氦样）。无封闭解析动力学；模方应保持 ≈ 1。
 &CONTROL
-  title  = '1D two-electron soft atom'
-  prefix = 'helium_1d'
+  title       = '1D two-electron soft atom'
+  prefix      = 'helium_1d'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 12
+  L         = 8.0
 /
 
 &SYSTEM
@@ -10,8 +19,12 @@
   mode      = 'exact'
   trap      = 'atom'
   fermion   = .true.
+  Z         = 1.0
+  soft_a    = 1.0
 /
 
 &TIME
-  T = 0.20
+  dt         = 0.02
+  T          = 0.20
+  propagator = 'rk4'
 /

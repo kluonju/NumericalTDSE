@@ -1,0 +1,40 @@
+! Driven 1D HO, CW dipole laser. Ehrenfest:
+!   ẍ + ω² x = E0 sin(ω_L t)
+! Energy is not conserved. Overlap with the field-free coherent state is not used.
+! 连续偶极激光驱动的一维谐振子（Ehrenfest 解析偶极；能量不守恒）。
+&CONTROL
+  title       = 'driven 1D HO (CW laser)'
+  prefix      = 'laser_1d'
+  ident_check = .false.
+/
+
+&MRA
+  prec = 1.0d-4
+  L    = 10.0
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.80
+  propagator = 'krylov'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.5
+/
+
+&LASER
+  E0      = 0.05
+  omega_L = 1.3
+  envelope = .false.
+/
+
+&OUTPUT
+  plot = 'laser_1d'
+/

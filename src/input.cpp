@@ -293,6 +293,20 @@ void apply_namelist_assignment(Parameters &p,
             p.renormalize = parse_bool(value, origin);
         } else if (key == "validate_free" || key == "validatefree") {
             p.validate_free = parse_bool(value, origin);
+        } else if (key == "validate_ho" || key == "validateho") {
+            p.validate_ho = parse_bool(value, origin);
+        } else if (key == "validate") {
+            const std::string s = to_lower_copy(value);
+            if (s == "free") {
+                p.validate_free = true;
+            } else if (s == "ho" || s == "harmonic") {
+                p.validate_ho = true;
+            } else if (s == "none" || s == "off" || s.empty()) {
+                p.validate_free = false;
+                p.validate_ho = false;
+            } else {
+                throw std::invalid_argument(origin + ": validate must be 'free', 'ho' or 'none'");
+            }
         } else if (key == "smoke") {
             p.smoke = parse_bool(value, origin);
         } else if (key == "nthreads" || key == "omp_threads" || key == "threads") {
@@ -476,9 +490,18 @@ void parse_namelist_file(const std::string &path, Parameters &p) {
 }
 
 void finalize_parameters(Parameters &p) {
+    if (p.validate_free && p.validate_ho) {
+        throw std::invalid_argument("choose only one of validate_free and validate_ho");
+    }
     if (p.validate_free) {
         p.trap = TrapKind::None;
         p.E0 = 0.0;
+    }
+    if (p.validate_ho) {
+        p.trap = TrapKind::Harmonic;
+        if (p.omega <= 0.0) {
+            throw std::invalid_argument("validate_ho requires SYSTEM omega > 0");
+        }
     }
     if (!p.prefix.empty() && !p.output_explicit) {
         p.output = p.prefix + "_observables.csv";
@@ -525,7 +548,8 @@ void write_input_template(std::ostream &os) {
   print_every   = 1
   ident_check   = .true.
   renormalize   = .false.
-  validate_free = .false.
+  validate_free = .false.         ! overlap vs analytic free Gaussian
+  validate_ho   = .false.         ! overlap vs HO coherent state (needs alpha = omega)
 /
 
 &MRA

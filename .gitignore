@@ -4,11 +4,15 @@ cmake-build-*/
 .cache/
 .idea/
 .vscode/
+__pycache__/
+*.pyc
+*.pyo
 *.o
 *.a
 *.so
-*.csv
-*.line
+*.png
+*.pdf
+*.svg
 *.cube
 *.dat
 observables.csv

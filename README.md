@@ -2,6 +2,9 @@
 
 Adaptive multiwavelet solver of the time-dependent Schrödinger equation (TDSE), built on [MRCPP](https://github.com/MRChemSoft/mrcpp) (≥ 1.4, developed against the 1.6.0-alpha line that ships `TimeEvolutionOperator`).
 
+**User guide:** [English](docs/USER_GUIDE.md) · [中文](docs/USER_GUIDE.zh.md)  
+**Examples:** [examples/README.md](examples/README.md)
+
 The code represents wave functions as `FunctionTree` objects on a `MultiResolutionAnalysis`, refines the grid from local wavelet-norm error estimates down to a user-specified precision `prec`, and propagates `i ∂t ψ = H ψ` with one of three algorithms (Krylov / Strang split-operator / RK4).
 
 ---
@@ -180,6 +183,7 @@ srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
 ./build/bin/tdse -i examples/free_particle.in
 ./build/bin/tdse --template          # 打印带注释的完整模板
 ./build/bin/tdse --smoke             # 内置短跑，供 ctest
+./examples/run_and_plot.sh examples/harmonic_1d.in
 ```
 
 段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  
@@ -196,9 +200,17 @@ srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
 /
 ```
 
-`examples/` 里还有 `free_particle.in`、`helium_1d.in`、`orbitals_4e.in`、`split_1d.in`、`smoke.in`、`orbitals_smoke.in`。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。
+算例目录见 [examples/README.md](examples/README.md)：谐振子 / 自由高斯 / 激光 / 软原子 / 精确双电子 / 轨道平均场，多数可与解析 \(\mu(t)\)、\(E\) 或 \(|\langle\psi_\mathrm{num}|\psi_\mathrm{ana}\rangle|\) 对照。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。
 
-CSV 列：`t, norm, dipole, energy, nodes_re, nodes_im, overlap_analytic`。`prefix = 'job'` 且未写 `output=` 时，观测文件为 `job_observables.csv`。
+画图（需 `pip install matplotlib`）：
+
+```bash
+python3 examples/compare_analytic.py harmonic_1d_observables.csv
+python3 examples/plot_observables.py harmonic_1d_observables.csv
+python3 examples/plot_wavefunction.py harmonic_1d_t0 --analytic ho --x0 1 --omega 1 --t 0
+```
+
+CSV 列：`t, norm, dipole, energy, nodes_re, nodes_im, overlap_analytic, dipole_analytic, energy_analytic`。`prefix = 'job'` 且未写 `output=` 时，观测文件为 `job_observables.csv`。完整关键字与解析公式见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) / [docs/USER_GUIDE.zh.md](docs/USER_GUIDE.zh.md)。
 
 ---
 
@@ -219,6 +231,8 @@ src/main.cpp          入口（MPI_Init_thread / Finalize）
 src/parameters.cpp    CLI（input.in / --template / --smoke）
 src/input.cpp         namelist 词法与赋值
 src/parallel.cpp      MPI 约化与线程设置
+docs/                 英文 / 中文使用手册
+examples/             namelist 算例、解析对照与画图脚本
 ```
 
 可调参数集中在 `Parameters`：`prec`, `order`, `max_depth`, `L`, `dt`, `T`。完整关键字见 `tdse --template`。

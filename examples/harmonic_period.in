@@ -1,0 +1,38 @@
+! One HO period (T = 2π) at a cheap grid, to see μ(t) = x0 cos(ω t).
+! 一个周期的谐振子，用较粗的网格看偶极振荡。
+! E = 0.625  (x0 = 0.5, α = ω = 1)
+&CONTROL
+  title       = '1D HO one period'
+  prefix      = 'harmonic_period'
+  ident_check = .false.
+  validate_ho = .true.
+  print_every = 2
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 12
+  L         = 6.0
+/
+
+&TIME
+  dt         = 0.05
+  T          = 6.283185307
+  propagator = 'rk4'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.5
+/
+
+&OUTPUT
+  plot   = 'harmonic_period'
+  n_plot = 400
+/

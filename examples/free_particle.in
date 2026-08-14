@@ -1,9 +1,15 @@
-! Free Gaussian vs the analytic expanding packet.
+! Free Gaussian vs the analytic expanding packet / 自由高斯 vs 解析解
+! μ(t) = x0,  E = α/4 = 0.25,  |⟨num|ana⟩| → 1
 &CONTROL
   title         = 'free Gaussian vs analytic'
   prefix        = 'free_particle'
   validate_free = .true.
   ident_check   = .false.
+/
+
+&MRA
+  prec  = 1.0d-4
+  L     = 10.0
 /
 
 &TIME
@@ -19,4 +25,9 @@
 &INITIAL
   alpha = 1.0
   x0    = 0.0
+  k0    = 0.0
+/
+
+&OUTPUT
+  plot = 'free_particle'
 /

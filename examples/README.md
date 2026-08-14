@@ -1,0 +1,32 @@
+# Examples
+
+Full tutorial: [English user guide](../docs/USER_GUIDE.md) · [中文使用手册](../docs/USER_GUIDE.zh.md)
+
+Run from the repository root after `cmake --build build --target tdse`:
+
+```bash
+./build/bin/tdse examples/harmonic_1d.in
+python3 examples/compare_analytic.py harmonic_1d_observables.csv
+python3 examples/plot_observables.py harmonic_1d_observables.csv
+./examples/run_and_plot.sh examples/free_particle.in
+```
+
+Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Python standard library.
+
+| File | EN | 中文 | Analytic |
+|---|---|---|---|
+| `harmonic_1d.in` | 1D HO coherent state | 一维谐振子相干态 | \(\mu=\cos t\), \(E=1\), overlap |
+| `harmonic_period.in` | one HO period \(T=2\pi\) | 一个振荡周期 | \(\mu=0.5\cos t\), \(E=0.625\) |
+| `harmonic_2d.in` | 2D HO | 二维谐振子 | \(\mu_x=\cos t\), \(E=1.5\) |
+| `free_particle.in` | spreading free Gaussian | 自由高斯扩散 | \(\mu=0\), \(E=\alpha/4\), overlap |
+| `free_boost.in` | travelling free Gaussian | 带初动量的自由高斯 | \(\mu=x_0+k_0 t\), \(E=0.75\) |
+| `laser_1d.in` | CW dipole-driven HO | 连续激光驱动 | Ehrenfest \(\mu(t)\) |
+| `split_1d.in` | Strang + TEO | 劈裂算符 + TEO | HO coherent, short \(T\) |
+| `atom_1d.in` | 1D soft-Coulomb atom | 一维软库仑原子 | none (watch \(\\|\psi\\|\) ) |
+| `helium_1d.in` | exact 1D two-electron | 精确一维双电子 | none |
+| `orbitals_2e.in` | 2 orbitals + \(\lambda\rho\) | 两轨道平均场 | none; MPI ok |
+| `orbitals_4e.in` | 4 orbitals + \(\lambda\rho\) | 四轨道 | none; up to 4 ranks |
+| `smoke.in` | ctest namelist | 短跑 | \(E\approx 0.625\) |
+| `orbitals_smoke.in` | MPI ctest | MPI 短跑 | — |
+
+Tools: `plot_observables.py`, `plot_wavefunction.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.

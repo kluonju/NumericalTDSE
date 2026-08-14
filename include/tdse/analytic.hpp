@@ -207,16 +207,86 @@ private:
     }
 };
 
-/** Analytic free Gaussian for i ∂t ψ = −½ ∂²_x ψ (atomic units, 1D). */
-inline std::complex<double> free_gaussian_1d(double x, double x0, double alpha, double t) {
-    // ψ(x,0) = (α/π)^{1/4} exp(−α (x−x0)² / 2)
-    // ψ(x,t) = (α/π)^{1/4} (1 + i α t)^{−1/2} exp(−α (x−x0)² / 2 / (1 + i α t))
+/** Analytic free Gaussian for i ∂t ψ = −½ ∂²_x ψ (atomic units, 1D), optional boost k0. */
+inline std::complex<double> free_gaussian_1d(double x, double x0, double alpha, double t, double k0 = 0.0) {
+    // ψ(x,0) = (α/π)^{1/4} exp(−α (x−x0)² / 2 + i k0 x)
+    // ψ(x,t) = (α/π)^{1/4} (1 + i α t)^{−1/2}
+    //          × exp(i k0 x − i k0² t / 2) exp(−α (x−x0−k0 t)² / 2 / (1 + i α t))
     const std::complex<double> I(0.0, 1.0);
     const std::complex<double> den = 1.0 + I * alpha * t;
     const double nrm = std::pow(alpha / PI, 0.25);
     const std::complex<double> pref = nrm / std::sqrt(den);
-    const double dx = x - x0;
-    return pref * std::exp(-0.5 * alpha * dx * dx / den);
+    const double dx = x - x0 - k0 * t;
+    const std::complex<double> boost = I * k0 * x - I * 0.5 * k0 * k0 * t;
+    return pref * std::exp(boost - 0.5 * alpha * dx * dx / den);
+}
+
+/**
+ * 1D harmonic-oscillator coherent state (requires α = ω).
+ * ⟨x⟩ = x0 cos(ω t) + (k0/ω) sin(ω t),  ⟨p⟩ = k0 cos(ω t) − ω x0 sin(ω t).
+ */
+inline std::complex<double> ho_coherent_1d(double x, double x0, double k0, double omega, double t) {
+    const std::complex<double> I(0.0, 1.0);
+    const double xc = x0 * std::cos(omega * t) + (k0 / omega) * std::sin(omega * t);
+    const double pc = k0 * std::cos(omega * t) - omega * x0 * std::sin(omega * t);
+    const double nrm = std::pow(omega / PI, 0.25);
+    const std::complex<double> phase = I * pc * (x - 0.5 * xc) - I * 0.5 * omega * t;
+    return nrm * std::exp(-0.5 * omega * (x - xc) * (x - xc) + phase);
+}
+
+/** Closed-form ⟨x⟩ for one electron (Ehrenfest). Driven HO assumes CW laser, no envelope. */
+inline double analytic_dipole(const Parameters &p, double t) {
+    if (p.representation != Representation::Exact || p.n_electrons != 1) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (p.trap == TrapKind::None) {
+        return p.x0 + p.k0 * t;
+    }
+    if (p.trap != TrapKind::Harmonic || p.omega == 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const double w = p.omega;
+    if (p.E0 == 0.0 || p.laser_envelope) {
+        return p.x0 * std::cos(w * t) + (p.k0 / w) * std::sin(w * t);
+    }
+    const double om = p.omega_L;
+    const double den = w * w - om * om;
+    if (std::abs(den) <= 1.0e-14) {
+        return std::numeric_limits<double>::quiet_NaN(); // resonant driving
+    }
+    const double A = p.x0;
+    const double B = (p.k0 - p.E0 * om / den) / w;
+    return A * std::cos(w * t) + B * std::sin(w * t) + p.E0 * std::sin(om * t) / den;
+}
+
+/** Closed-form energy of the initial Gaussian (conserved if E0 = 0). */
+inline double analytic_energy(const Parameters &p) {
+    if (p.representation != Representation::Exact || p.n_electrons != 1 || p.E0 != 0.0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const double boost = 0.5 * p.k0 * p.k0;
+    const double D = static_cast<double>(p.spatial_dim);
+    if (p.trap == TrapKind::None) {
+        return 0.25 * p.alpha * D + boost;
+    }
+    if (p.trap == TrapKind::Harmonic && p.alpha > 0.0) {
+        const double width = 0.25 * D * (p.alpha + p.omega * p.omega / p.alpha);
+        return width + 0.5 * p.omega * p.omega * p.x0 * p.x0 + boost;
+    }
+    return std::numeric_limits<double>::quiet_NaN();
+}
+
+inline bool wants_analytic_overlap(const Parameters &p) {
+    if (p.spatial_dim != 1 || p.n_electrons != 1 || p.representation != Representation::Exact) {
+        return false;
+    }
+    if (p.validate_free) {
+        return true;
+    }
+    if (p.validate_ho && p.E0 == 0.0 && p.alpha > 0.0 && std::abs(p.alpha - p.omega) < 1.0e-12) {
+        return true;
+    }
+    return false;
 }
 
 /** Coordinate function x_d, used to build the dipole density. */

@@ -1,9 +1,13 @@
-! 1D harmonic oscillator, displaced Gaussian, RK4.
-! Unspecified keys keep their defaults (see `tdse --template`).
+! 1D harmonic oscillator / 一维谐振子
+! Coherent state: alpha = omega = 1, x0 = 1.
+! Analytic:  μ(t) = x0 cos(ω t) = cos(t)
+!            E    = ω/2 + ½ ω² x0² = 1
+!            |⟨ψ_num|ψ_ana⟩| with validate_ho = .true.
 &CONTROL
-  title       = '1D harmonic oscillator'
+  title       = '1D harmonic oscillator vs coherent state'
   prefix      = 'harmonic_1d'
   ident_check = .false.
+  validate_ho = .true.
 /
 
 &MRA

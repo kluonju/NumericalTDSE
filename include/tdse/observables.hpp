@@ -11,6 +11,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -22,7 +23,9 @@ struct Observables {
     double nrm = 0.0;
     double dipole = 0.0;
     double energy = 0.0;
-    double overlap_analytic = 0.0; ///< |⟨ψ_num|ψ_ana⟩| for free-particle tests
+    double overlap_analytic = 0.0; ///< |⟨ψ_num|ψ_ana⟩| for free / HO tests
+    double dipole_analytic = std::numeric_limits<double>::quiet_NaN();
+    double energy_analytic = std::numeric_limits<double>::quiet_NaN();
     int n_nodes_re = 0;
     int n_nodes_im = 0;
 };
@@ -84,13 +87,14 @@ Observables compute_observables(double prec,
 }
 
 inline void write_header(std::ostream &os) {
-    os << "t,norm,dipole,energy,nodes_re,nodes_im,overlap_analytic\n";
+    os << "t,norm,dipole,energy,nodes_re,nodes_im,overlap_analytic,dipole_analytic,energy_analytic\n";
 }
 
 inline void write_row(std::ostream &os, const Observables &o) {
     os << std::scientific << std::setprecision(12)
        << o.t << ',' << o.nrm << ',' << o.dipole << ',' << o.energy << ','
-       << o.n_nodes_re << ',' << o.n_nodes_im << ',' << o.overlap_analytic << '\n';
+       << o.n_nodes_re << ',' << o.n_nodes_im << ',' << o.overlap_analytic << ','
+       << o.dipole_analytic << ',' << o.energy_analytic << '\n';
 }
 
 inline void print_row(const Observables &o) {
@@ -101,6 +105,15 @@ inline void print_row(const Observables &o) {
        << "  μ=" << o.dipole
        << "  E=" << o.energy
        << "  nodes=" << o.n_nodes_re << "/" << o.n_nodes_im;
+    if (o.overlap_analytic > 0.0) {
+        ss << "  |⟨num|ana⟩|=" << std::setprecision(10) << o.overlap_analytic;
+    }
+    if (std::isfinite(o.dipole_analytic)) {
+        ss << "  μ_ana=" << std::setprecision(6) << o.dipole_analytic;
+    }
+    if (std::isfinite(o.energy_analytic)) {
+        ss << "  E_ana=" << std::setprecision(6) << o.energy_analytic;
+    }
     println(0, ss.str());
 }
 

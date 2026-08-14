@@ -85,6 +85,7 @@ struct Parameters {
     bool output_explicit = false; ///< true if output= was set (do not rewrite from prefix)
     bool smoke = false;     ///< Tiny run for ctest
     bool validate_free = false; ///< Compare 1D free particle with the analytic Gaussian
+    bool validate_ho = false;   ///< Compare 1D HO coherent state (α = ω) with the analytic packet
     bool ident_check = true; ///< Apply IdentityConvolution once at t = 0 as a sanity check
     bool renormalize = false; ///< Project back onto the unit sphere after each step
     int nthreads = 0;       ///< OpenMP threads per MPI rank; 0 → OMP_NUM_THREADS / runtime default

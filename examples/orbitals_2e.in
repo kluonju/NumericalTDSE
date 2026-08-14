@@ -1,0 +1,29 @@
+! Two 1D orbitals + contact Hartree λ ρ. MPI can split the two orbitals.
+! 两个轨道 + 接触 Hartree。无单轨道解析解；检查总模方。
+&CONTROL
+  title       = 'two-electron orbital TDSE'
+  prefix      = 'orbitals_2e'
+  ident_check = .false.
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'orbital'
+  trap      = 'harmonic'
+  lambda    = 0.5
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.20
+  propagator = 'rk4'
+/
+
+&INITIAL
+  x0 = 1.0
+/
+
+&PARALLEL
+  nthreads = 0
+/

@@ -100,16 +100,22 @@ void identity_sanity_check(double prec, OperatorSet<D> &ops, CplxFun<D> &psi) {
 }
 
 template <int D>
-double free_particle_overlap(double prec, CplxFun<D> &psi, const Parameters &p, double t) {
+double analytic_wf_overlap(double prec, CplxFun<D> &psi, const Parameters &p, double t) {
     if constexpr (D != 1) {
         return 0.0;
     } else {
         CplxFun<1> ana(psi.mra);
         auto re_f = [&](const mrcpp::Coord<1> &r) -> double {
-            return free_gaussian_1d(r[0], p.x0, p.alpha, t).real();
+            if (p.validate_free || p.trap == TrapKind::None) {
+                return free_gaussian_1d(r[0], p.x0, p.alpha, t, p.k0).real();
+            }
+            return ho_coherent_1d(r[0], p.x0, p.k0, p.omega, t).real();
         };
         auto im_f = [&](const mrcpp::Coord<1> &r) -> double {
-            return free_gaussian_1d(r[0], p.x0, p.alpha, t).imag();
+            if (p.validate_free || p.trap == TrapKind::None) {
+                return free_gaussian_1d(r[0], p.x0, p.alpha, t, p.k0).imag();
+            }
+            return ho_coherent_1d(r[0], p.x0, p.k0, p.omega, t).imag();
         };
         mrcpp::project<1, double>(prec, ana.re, re_f);
         mrcpp::project<1, double>(prec, ana.im, im_f);
@@ -214,8 +220,10 @@ int simulate_exact(const Parameters &p) {
         if (s % p.print_every == 0 || s == nsteps) {
             auto V = project_V(MRA, p.prec, pot, t);
             Observables o = compute_observables(p.prec, t, psi, ops, *V, p);
-            if (p.validate_free) {
-                o.overlap_analytic = free_particle_overlap(p.prec, psi, p, t);
+            o.dipole_analytic = analytic_dipole(p, t);
+            o.energy_analytic = analytic_energy(p);
+            if (wants_analytic_overlap(p)) {
+                o.overlap_analytic = analytic_wf_overlap(p.prec, psi, p, t);
             }
             if (parallel::io_rank()) {
                 write_row(csv, o);
