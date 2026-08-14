@@ -37,10 +37,12 @@ i\,\partial_t\psi = \hat H(t)\,\psi,\qquad
 - C++17 编译器，CMake ≥ 3.16
 - [MRCPP](https://github.com/MRChemSoft/mrcpp)（CMake 在找不到本地安装时会 FetchContent 指定 commit）
 - Eigen3（由 MRCPP 自动拉取）
-- 可选 OpenMP
+- 可选 OpenMP（多核，树操作内部并行）
+- 可选 MPI（多节点；轨道模式按轨道分 rank）
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNUMTDSE_OPENMP=ON -DCMAKE_CXX_COMPILER=g++
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DNUMTDSE_OPENMP=ON -DNUMTDSE_MPI=ON -DCMAKE_CXX_COMPILER=g++
 cmake --build build -j --target tdse
 ctest --test-dir build --output-on-failure
 ```
@@ -51,7 +53,49 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build -DMRCPP_DIR=$HOME/Software/mrcpp/share/cmake/MRCPP
 ```
 
-OpenMP 线程数：`export OMP_NUM_THREADS=8`。
+OpenMP 线程数：`export OMP_NUM_THREADS=8`，或在输入里写 `&PARALLEL nthreads = 8 /`。
+
+---
+
+## 并行（OpenMP + MPI）
+
+MRCPP 只在 **OpenMP** 下并行化一张 `FunctionTree` 内部的 project / apply / multiply，**没有**把一棵树按空间拆到多个 MPI 进程。MPI 只提供整树的 `send_tree` / `recv_tree`。因此本求解器的用法是：
+
+| 模式 | 多核（节点内） | 多节点 |
+|---|---|---|
+| `mode = 'exact'`（一张 N 体树） | OpenMP 线程 | 额外 MPI rank **不会加速**（会打印提示） |
+| `mode = 'orbital'`（最多 4 个轨道） | 每张轨道树内部 OpenMP | 轨道 round-robin 分到各 rank，密度与观测量 MPI 约化 |
+
+不要调用 MRCPP 的 `mrcpp::mpi::initialize()`（那是 MRChem 的 bank 进程模型，会占用并退出一部分 rank）。本程序用 `MPI_Init_thread(..., MPI_THREAD_FUNNELED)`，只在主线程做 MPI。
+
+单节点多核：
+
+```bash
+export OMP_NUM_THREADS=16
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+./build/bin/tdse examples/harmonic_1d.in
+```
+
+多节点 + 每节点多核（轨道模式），例如 4 个 MPI rank、每个 rank 8 线程：
+
+```bash
+export OMP_NUM_THREADS=8
+export OMP_PROC_BIND=true
+export OMP_PLACES=cores
+mpirun -np 4 --map-by ppr:1:node:pe=8 \
+    ./build/bin/tdse examples/orbitals_4e.in
+```
+
+SLURM：
+
+```bash
+srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
+    env OMP_NUM_THREADS=8 OMP_PROC_BIND=true OMP_PLACES=cores \
+    ./build/bin/tdse examples/orbitals_4e.in
+```
+
+`examples/parallel.sh` 是一个本机 `mpirun -np 2` 的包装。输入文件需要在所有节点可见（共享文件系统）。
 
 ---
 
@@ -66,8 +110,8 @@ OpenMP 线程数：`export OMP_NUM_THREADS=8`。
 ./build/bin/tdse --smoke             # 内置短跑，供 ctest
 ```
 
-段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT`  
-别名：`CTRL`；`GRID` / `NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION` / `PSI` → `INITIAL`；`FIELD` → `LASER`；`IO` / `OUT` → `OUTPUT`。
+段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  
+别名：`CTRL`；`GRID` / `NUMERICS` → `MRA`；`PROPAGATOR` → `TIME`；`WAVEFUNCTION` / `PSI` → `INITIAL`；`FIELD` → `LASER`；`IO` / `OUT` → `OUTPUT`；`PARA` / `OMP` → `PARALLEL`。
 
 ```fortran
 ! 最小输入：1D 谐振子，其余全是默认值
@@ -80,7 +124,7 @@ OpenMP 线程数：`export OMP_NUM_THREADS=8`。
 /
 ```
 
-`examples/` 里还有 `free_particle.in`、`helium_1d.in`、`orbitals_4e.in`、`split_1d.in`、`smoke.in`。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。
+`examples/` 里还有 `free_particle.in`、`helium_1d.in`、`orbitals_4e.in`、`split_1d.in`、`smoke.in`、`orbitals_smoke.in`。`calculation = 'smoke'` 会先载入短跑预设，文件里显式写出的关键字仍然生效。
 
 CSV 列：`t, norm, dipole, energy, nodes_re, nodes_im, overlap_analytic`。`prefix = 'job'` 且未写 `output=` 时，观测文件为 `job_observables.csv`。
 
@@ -98,9 +142,11 @@ include/tdse/
   propagator.hpp      Split / Krylov / RK4
   observables.hpp     模方、偶极、能量
   simulate.hpp        时间循环
-src/main.cpp          入口
+  parallel.hpp        MPI + OpenMP（轨道分 rank，树内 OpenMP）
+src/main.cpp          入口（MPI_Init_thread / Finalize）
 src/parameters.cpp    CLI（input.in / --template / --smoke）
 src/input.cpp         namelist 词法与赋值
+src/parallel.cpp      MPI 约化与线程设置
 ```
 
 可调参数集中在 `Parameters`：`prec`, `order`, `max_depth`, `L`, `dt`, `T`。完整关键字见 `tdse --template`。
@@ -112,4 +158,5 @@ src/input.cpp         namelist 词法与赋值
 - 哈密顿量使用标准量子化学原子单位 \(T=-\frac12\nabla^2\)。MRCPP 的 `TimeEvolutionOperator` 表示 \(\exp(i\tau\partial_x^2)\)，因此传入 \(\tau=\Delta t/2\)。
 - 该算子目前只实现于 **1D Legendre** 缩放函数。
 - MRCPP 对 `FunctionTree<D>` 显式实例化 D=1,2,3。四电子精确波函数请用 `mode = 'orbital'`。
+- MPI 不能把一张精确 N 体树拆开；多节点请用 `mode = 'orbital'`。
 - 默认演示参数偏向“能跑完”，要定量结果请把 `prec` 降到 `1d-5`–`1d-6` 并减小 `dt`。

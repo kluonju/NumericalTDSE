@@ -14,6 +14,7 @@ include(GNUInstallDirs)
 include(FetchContent)
 
 option(NUMTDSE_OPENMP "Enable OpenMP parallelization (forwarded to MRCPP)" ON)
+option(NUMTDSE_MPI "Enable MPI multi-node parallelization (forwarded to MRCPP)" ON)
 option(NUMTDSE_FETCH_MRCPP "Download MRCPP with FetchContent if find_package fails" ON)
 set(NUMTDSE_MRCPP_GIT_TAG "77187f0e2a070741032997c777b7f47a39abdac5" CACHE STRING
     "MRCPP Git commit (1.6.0-alpha line with TimeEvolutionOperator)")
@@ -23,10 +24,18 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---------------------------------------------------------------------------
-# OpenMP (optional, recommended)
+# OpenMP (optional, recommended) and MPI (optional, multi-node)
 # ---------------------------------------------------------------------------
 if(NUMTDSE_OPENMP)
     find_package(OpenMP COMPONENTS CXX)
+endif()
+
+if(NUMTDSE_MPI)
+    find_package(MPI COMPONENTS CXX)
+    if(NOT MPI_CXX_FOUND)
+        message(WARNING "NUMTDSE_MPI is ON but MPI was not found; building without MPI")
+        set(NUMTDSE_MPI OFF)
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
@@ -47,7 +56,7 @@ if(NOT MRCPP_FOUND)
 
     set(ENABLE_TESTS OFF CACHE BOOL "Disable MRCPP test suite" FORCE)
     set(ENABLE_EXAMPLES OFF CACHE BOOL "Disable MRCPP examples" FORCE)
-    set(ENABLE_MPI OFF CACHE BOOL "Disable MRCPP MPI" FORCE)
+    set(ENABLE_MPI ${NUMTDSE_MPI} CACHE BOOL "Forward MPI to MRCPP" FORCE)
     set(ENABLE_OPENMP ${NUMTDSE_OPENMP} CACHE BOOL "Forward OpenMP to MRCPP" FORCE)
 
     FetchContent_Declare(mrcpp
@@ -73,6 +82,7 @@ add_executable(tdse
     src/main.cpp
     src/parameters.cpp
     src/input.cpp
+    src/parallel.cpp
 )
 
 target_include_directories(tdse PRIVATE
@@ -84,6 +94,11 @@ target_link_libraries(tdse PRIVATE ${NUMTDSE_MRCPP_TARGET})
 if(OpenMP_CXX_FOUND)
     target_link_libraries(tdse PRIVATE OpenMP::OpenMP_CXX)
     target_compile_definitions(tdse PRIVATE NUMTDSE_HAS_OPENMP=1)
+endif()
+
+if(NUMTDSE_MPI AND MPI_CXX_FOUND)
+    target_link_libraries(tdse PRIVATE MPI::MPI_CXX)
+    target_compile_definitions(tdse PRIVATE NUMTDSE_HAS_MPI=1)
 endif()
 
 target_compile_features(tdse PRIVATE cxx_std_17)
@@ -117,5 +132,30 @@ set_tests_properties(tdse_namelist_smoke PROPERTIES
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+if(NUMTDSE_MPI AND MPI_CXX_FOUND AND MPIEXEC_EXECUTABLE)
+    set(_numtdse_mpi_preflags)
+    if(MPIEXEC_EXECUTABLE MATCHES "openmpi" OR EXISTS "/usr/bin/mpirun.openmpi")
+        list(APPEND _numtdse_mpi_preflags --allow-run-as-root --oversubscribe)
+    endif()
+    add_test(NAME tdse_mpi_smoke
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ${_numtdse_mpi_preflags}
+                $<TARGET_FILE:tdse> --smoke
+    )
+    set_tests_properties(tdse_mpi_smoke PROPERTIES
+        TIMEOUT 300
+        ENVIRONMENT "OMPI_ALLOW_RUN_AS_ROOT=1;OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1;OMPI_MCA_rmaps_base_oversubscribe=true;OMP_NUM_THREADS=1"
+    )
+    add_test(NAME tdse_mpi_orbitals
+        COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ${_numtdse_mpi_preflags}
+                $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/orbitals_smoke.in
+    )
+    set_tests_properties(tdse_mpi_orbitals PROPERTIES
+        TIMEOUT 300
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        ENVIRONMENT "OMPI_ALLOW_RUN_AS_ROOT=1;OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1;OMPI_MCA_rmaps_base_oversubscribe=true;OMP_NUM_THREADS=1"
+    )
+endif()
+
 message(STATUS "NumericalTDSE: MRCPP target = ${NUMTDSE_MRCPP_TARGET}")
 message(STATUS "NumericalTDSE: OpenMP       = ${NUMTDSE_OPENMP}")
+message(STATUS "NumericalTDSE: MPI          = ${NUMTDSE_MPI}")

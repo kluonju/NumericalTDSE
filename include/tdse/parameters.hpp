@@ -87,6 +87,7 @@ struct Parameters {
     bool validate_free = false; ///< Compare 1D free particle with the analytic Gaussian
     bool ident_check = true; ///< Apply IdentityConvolution once at t = 0 as a sanity check
     bool renormalize = false; ///< Project back onto the unit sphere after each step
+    int nthreads = 0;       ///< OpenMP threads per MPI rank; 0 → OMP_NUM_THREADS / runtime default
 };
 
 Parameters parse_cli(int argc, char **argv);

@@ -14,3 +14,7 @@
 &TIME
   propagator = 'rk4'
 /
+
+&PARALLEL
+  nthreads = 0                    ! 0 → OMP_NUM_THREADS; MPI ranks split the 4 orbitals
+/

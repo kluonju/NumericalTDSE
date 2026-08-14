@@ -8,6 +8,7 @@
 #include "tdse/observables.hpp"
 #include "tdse/operators.hpp"
 #include "tdse/parameters.hpp"
+#include "tdse/parallel.hpp"
 #include "tdse/propagator.hpp"
 #include "tdse/wavefunction.hpp"
 
@@ -71,7 +72,7 @@ project_V(const mrcpp::MultiResolutionAnalysis<D> &mra,
 
 template <int D>
 void maybe_plot(CplxFun<D> &psi, const Parameters &p, const std::string &tag) {
-    if (p.plot_prefix.empty()) {
+    if (p.plot_prefix.empty() || !parallel::io_rank()) {
         return;
     }
     if constexpr (D == 1) {
@@ -157,6 +158,13 @@ void advance(CplxFun<D> &psi,
 template <int D>
 int simulate_exact(const Parameters &p) {
     mrcpp::Timer timer;
+    if (parallel::size > 1) {
+        println(0,
+                "  note: exact N-body uses one FunctionTree; MPI does not "
+                "domain-decompose it. Extra ranks replicate the work. "
+                "Use OpenMP (nthreads / OMP_NUM_THREADS) for this mode, "
+                "and MPI for mode = 'orbital'.");
+    }
     auto MRA = make_mra<D>(p);
     MRA.print();
 
@@ -188,11 +196,16 @@ int simulate_exact(const Parameters &p) {
         }
     }
 
-    std::ofstream csv(p.output);
-    if (!csv) {
-        throw std::runtime_error("cannot open output file: " + p.output);
+    std::ofstream csv;
+    if (parallel::io_rank()) {
+        csv.open(p.output);
+        if (!csv) {
+            std::cerr << "NumericalTDSE error: cannot open output file: " << p.output << std::endl;
+            parallel::abort_all(1);
+        }
+        write_header(csv);
     }
-    write_header(csv);
+    parallel::barrier();
 
     const int nsteps = static_cast<int>(std::llround(p.T / p.dt));
     mrcpp::print::header(0, "Time evolution");
@@ -204,7 +217,9 @@ int simulate_exact(const Parameters &p) {
             if (p.validate_free) {
                 o.overlap_analytic = free_particle_overlap(p.prec, psi, p, t);
             }
-            write_row(csv, o);
+            if (parallel::io_rank()) {
+                write_row(csv, o);
+            }
             print_row(o);
         }
         if (s == nsteps) {
@@ -212,7 +227,9 @@ int simulate_exact(const Parameters &p) {
         }
         advance(psi, ops, pot, t, p, ReE, ImE);
     }
-    csv.close();
+    if (parallel::io_rank()) {
+        csv.close();
+    }
     maybe_plot(psi, p, "tT");
     mrcpp::print::footer(0, timer, 2);
     return 0;
@@ -229,8 +246,11 @@ int simulate_orbitals(const Parameters &p) {
     TimeDependentPotential<D> pot(p);
     const int n = p.n_electrons;
 
-    std::vector<std::unique_ptr<CplxFun<D>>> orbs;
+    std::vector<std::unique_ptr<CplxFun<D>>> orbs(static_cast<std::size_t>(n));
     for (int i = 0; i < n; ++i) {
+        if (!parallel::owns_orbital(i)) {
+            continue;
+        }
         auto phi = std::make_unique<CplxFun<D>>(MRA);
         double c = p.x0;
         if (n > 1) {
@@ -238,19 +258,28 @@ int simulate_orbitals(const Parameters &p) {
         }
         project_psi(p.prec, *phi, p, c);
         normalize(*phi);
-        orbs.push_back(std::move(phi));
+        orbs[static_cast<std::size_t>(i)] = std::move(phi);
     }
 
-    std::ofstream csv(p.output);
-    if (!csv) {
-        throw std::runtime_error("cannot open output file: " + p.output);
+    std::ofstream csv;
+    if (parallel::io_rank()) {
+        csv.open(p.output);
+        if (!csv) {
+            std::cerr << "NumericalTDSE error: cannot open output file: " << p.output << std::endl;
+            parallel::abort_all(1);
+        }
+        write_header(csv);
     }
-    write_header(csv);
+    parallel::barrier();
 
     auto density = [&]() {
         auto rho = std::make_unique<mrcpp::FunctionTree<D>>(MRA);
+        rho->setZero();
         bool first = true;
         for (auto &phi : orbs) {
+            if (!phi) {
+                continue;
+            }
             mrcpp::FunctionTree<D> re2(MRA);
             mrcpp::FunctionTree<D> im2(MRA);
             mrcpp::square(p.prec, re2, phi->re);
@@ -264,11 +293,17 @@ int simulate_orbitals(const Parameters &p) {
                 rho->add(1.0, dens_i);
             }
         }
+        parallel::sum_tree<D>(*rho, p.prec);
         return rho;
     };
 
     const int nsteps = static_cast<int>(std::llround(p.T / p.dt));
     mrcpp::print::header(0, "Orbital time evolution (contact Hartree λ ρ)");
+    if (parallel::size > 1) {
+        println(0,
+                "  MPI: " << parallel::size << " ranks, orbitals round-robin "
+                                              "(OpenMP inside each tree)");
+    }
     for (int s = 0; s <= nsteps; ++s) {
         const double t = s * p.dt;
         auto Vext = project_V(MRA, p.prec, pot, t);
@@ -289,14 +324,24 @@ int simulate_orbitals(const Parameters &p) {
             o.n_nodes_re = 0;
             o.n_nodes_im = 0;
             for (auto &phi : orbs) {
+                if (!phi) {
+                    continue;
+                }
                 o.nrm += square_norm(*phi);
                 o.dipole += dipole_moment<D>(p.prec, *phi, 0);
                 o.energy += energy_expectation(p.prec, *phi, ops, V);
                 o.n_nodes_re += phi->re.getNNodes();
                 o.n_nodes_im += phi->im.getNNodes();
             }
-            o.nrm = std::sqrt(o.nrm);
-            write_row(csv, o);
+            parallel::sum(o.nrm);
+            parallel::sum(o.dipole);
+            parallel::sum(o.energy);
+            parallel::sum(o.n_nodes_re);
+            parallel::sum(o.n_nodes_im);
+            o.nrm = std::sqrt(std::max(0.0, o.nrm));
+            if (parallel::io_rank()) {
+                write_row(csv, o);
+            }
             print_row(o);
         }
         if (s == nsteps) {
@@ -304,6 +349,9 @@ int simulate_orbitals(const Parameters &p) {
         }
 
         for (auto &phi : orbs) {
+            if (!phi) {
+                continue;
+            }
             switch (p.propagator) {
                 case Propagator::RK4: {
                     auto Vext_h = project_V(MRA, p.prec, pot, t + 0.5 * p.dt);
@@ -326,7 +374,9 @@ int simulate_orbitals(const Parameters &p) {
             }
         }
     }
-    csv.close();
+    if (parallel::io_rank()) {
+        csv.close();
+    }
     mrcpp::print::footer(0, timer, 2);
     return 0;
 }

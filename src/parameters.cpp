@@ -1,5 +1,6 @@
 #include "tdse/input.hpp"
 #include "tdse/parameters.hpp"
+#include "tdse/parallel.hpp"
 
 #include "MRCPP/Printer"
 
@@ -27,7 +28,9 @@ void usage(const char *argv0) {
         << "  --smoke              Tiny built-in RK4 run (ctest); no input file\n"
         << "  -h, --help           This message\n"
         << "\n"
-        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT\n"
+        << "Namelists: &CONTROL &MRA &TIME &SYSTEM &INITIAL &LASER &OUTPUT &PARALLEL\n"
+        << "Hybrid MPI+OpenMP: mpirun -np <ranks> --bind-to core:overload-allowed \\\n"
+        << "                   -x OMP_NUM_THREADS=<threads> " << argv0 << " job.in\n"
         << "Run `" << argv0 << " --template` for keywords and defaults.\n";
 }
 
@@ -121,6 +124,8 @@ void print_parameters(const Parameters &p) {
     println(0, "  representation  : " << representation_name(p.representation));
     println(0, "  trap            : " << trap_name(p.trap));
     println(0, "  output          : " << p.output);
+    mrcpp::print::value(0, "MPI ranks", static_cast<double>(parallel::size));
+    mrcpp::print::value(0, "OpenMP threads / rank", static_cast<double>(parallel::nthreads));
     mrcpp::print::separator(0, '=', 2);
 }
 
@@ -131,11 +136,15 @@ Parameters parse_cli(int argc, char **argv) {
 
     for (int i = 1; i < argc; ++i) {
         if (eq(argv[i], "-h") || eq(argv[i], "--help")) {
-            usage(argv[0]);
-            std::exit(0);
+            if (parallel::io_rank()) {
+                usage(argv[0]);
+            }
+            parallel::shutdown(0);
         } else if (eq(argv[i], "--template")) {
-            write_input_template(std::cout);
-            std::exit(0);
+            if (parallel::io_rank()) {
+                write_input_template(std::cout);
+            }
+            parallel::shutdown(0);
         } else if (eq(argv[i], "--smoke")) {
             smoke_cli = true;
         } else if (eq(argv[i], "-i") || eq(argv[i], "--input")) {
@@ -153,8 +162,10 @@ Parameters parse_cli(int argc, char **argv) {
     if (smoke_cli) {
         apply_smoke_defaults(p);
     } else if (input_file.empty()) {
-        usage(argv[0]);
-        std::exit(1);
+        if (parallel::io_rank()) {
+            usage(argv[0]);
+        }
+        parallel::shutdown(1);
     }
 
     if (!input_file.empty()) {

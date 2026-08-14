@@ -45,11 +45,14 @@ std::string canonical_section(std::string name) {
     if (name == "IO" || name == "OUT") {
         return "OUTPUT";
     }
+    if (name == "PARA" || name == "OMP") {
+        return "PARALLEL";
+    }
     return name;
 }
 
 const std::unordered_set<std::string> kKnownSections = {
-        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT"};
+        "CONTROL", "MRA", "TIME", "SYSTEM", "INITIAL", "LASER", "OUTPUT", "PARALLEL"};
 
 bool is_ident_char(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
 
@@ -292,6 +295,17 @@ void apply_namelist_assignment(Parameters &p,
             p.validate_free = parse_bool(value, origin);
         } else if (key == "smoke") {
             p.smoke = parse_bool(value, origin);
+        } else if (key == "nthreads" || key == "omp_threads" || key == "threads") {
+            p.nthreads = parse_int(value, origin);
+        } else {
+            unknown();
+        }
+        return;
+    }
+
+    if (section == "PARALLEL") {
+        if (key == "nthreads" || key == "omp_threads" || key == "threads" || key == "omp") {
+            p.nthreads = parse_int(value, origin);
         } else {
             unknown();
         }
@@ -491,6 +505,9 @@ void finalize_parameters(Parameters &p) {
     if (p.order < 2) {
         throw std::invalid_argument("MRA order must be >= 2");
     }
+    if (p.nthreads < 0) {
+        throw std::invalid_argument("PARALLEL nthreads must be >= 0 (0 = OMP_NUM_THREADS)");
+    }
 }
 
 void write_input_template(std::ostream &os) {
@@ -556,6 +573,10 @@ void write_input_template(std::ostream &os) {
   output = 'observables.csv'
   plot   = ''                     ! non-empty → 1D line plots at t=0 and t=T
   n_plot = 800
+/
+
+&PARALLEL
+  nthreads = 0                    ! OpenMP threads per MPI rank; 0 → OMP_NUM_THREADS
 /
 )INP";
 }

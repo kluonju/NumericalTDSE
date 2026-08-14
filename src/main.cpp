@@ -8,6 +8,7 @@
 
 #include "tdse/parameters.hpp"
 #include "tdse/simulate.hpp"
+#include "tdse/parallel.hpp"
 
 #include "MRCPP/Printer"
 
@@ -15,13 +16,19 @@
 #include <iostream>
 
 int main(int argc, char **argv) {
+    tdse::parallel::init(argc, argv);
     try {
         tdse::Parameters p = tdse::parse_cli(argc, argv);
-        mrcpp::Printer::init(p.printlevel);
+        tdse::parallel::configure_threads(p.nthreads);
+        mrcpp::Printer::init(p.printlevel, tdse::parallel::rank, tdse::parallel::size);
         mrcpp::print::environment(0);
-        return tdse::run(p);
+        const int rc = tdse::run(p);
+        tdse::parallel::finalize();
+        return rc;
     } catch (const std::exception &ex) {
-        std::cerr << "NumericalTDSE error: " << ex.what() << std::endl;
-        return 1;
+        if (tdse::parallel::io_rank()) {
+            std::cerr << "NumericalTDSE error: " << ex.what() << std::endl;
+        }
+        tdse::parallel::abort_all(1);
     }
 }

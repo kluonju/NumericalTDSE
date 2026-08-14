@@ -1,0 +1,16 @@
+! Tiny two-orbital RK4 run for MPI ctest (calculation='smoke' + orbital override).
+&CONTROL
+  calculation = 'smoke'
+  title       = 'MPI orbital smoke'
+  ident_check = .false.
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'orbital'
+/
+
+&PARALLEL
+  nthreads = 1
+/
