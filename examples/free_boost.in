@@ -1,0 +1,33 @@
+! Boosted free Gaussian: the packet travels at speed k0.
+! 带初动量的自由高斯：质心 x0 + k0 t，能量 α/4 + k0²/2 = 0.75
+&CONTROL
+  title         = 'boosted free Gaussian'
+  prefix        = 'free_boost'
+  validate_free = .true.
+  ident_check   = .false.
+/
+
+&MRA
+  prec = 1.0d-4
+  L    = 12.0
+/
+
+&TIME
+  dt         = 0.02
+  T          = 0.40
+  propagator = 'rk4'
+/
+
+&SYSTEM
+  trap = 'free'
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = -0.5
+  k0    = 1.0
+/
+
+&OUTPUT
+  plot = 'free_boost'
+/

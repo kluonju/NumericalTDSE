@@ -1,0 +1,40 @@
+! Four lowest 1D HO eigenstates. Ground: Lanczos + heat polish.
+! n≥1: Hermite guess + heat-kernel imag-time in the orthogonal complement.
+! Analytic: E_n = ω (n + 1/2). Use kinetic='bs' for smooth HO states.
+! 一维谐振子最低四态。B-spline 动能；热核虚时打磨。
+&CONTROL
+  calculation = 'eigen'
+  title       = '1D HO lowest four eigenstates'
+  prefix      = 'eigen_1d'
+  ident_check = .false.
+  n_states    = 4
+/
+
+&MRA
+  prec  = 1.0d-4
+  order = 7
+  L     = 8.0
+/
+
+&TIME
+  krylov_dim = 16
+  kinetic    = 'bs'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.7
+/
+
+&EIGEN
+  method = 'lanczos'
+/
+
+&OUTPUT
+  plot = 'eigen_1d'
+/

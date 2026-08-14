@@ -1,0 +1,34 @@
+! 2D isotropic harmonic oscillator, one electron on FunctionTree<2>.
+! 二维各向同性谐振子。μ_x(t) = x0 cos(ω t)
+! E = 2 × (α + ω²/α)/4 + ½ ω² x0² = 1.5   (α = ω = 1, x0 = 1)
+&CONTROL
+  title       = '2D harmonic oscillator'
+  prefix      = 'harmonic_2d'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 12
+  L         = 6.0
+/
+
+&TIME
+  dt         = 0.05
+  T          = 0.20
+  propagator = 'rk4'
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 1
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 1.0
+/

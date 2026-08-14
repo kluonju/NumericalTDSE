@@ -1,0 +1,33 @@
+! Strang split + TimeEvolutionOperator on the 1D HO coherent state.
+! 1D Strang + TEO；自动改用 Legendre 基。α = ω 时可与相干态比较。
+&CONTROL
+  title       = '1D Strang + TimeEvolutionOperator'
+  prefix      = 'split_1d'
+  ident_check = .false.
+  validate_ho = .true.
+/
+
+&MRA
+  prec  = 1.0d-4
+  L     = 8.0
+/
+
+&TIME
+  dt         = 0.01
+  T          = 0.10
+  propagator = 'split'
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 1.0
+/
+
+&OUTPUT
+  plot = 'split_1d'
+/

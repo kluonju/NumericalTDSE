@@ -1,0 +1,6 @@
+! Tiny RK4 harmonic-oscillator run for ctest. calculation='smoke' loads the
+! built-in preset (prec=1d-3, two steps, …); add keywords here to override it.
+&CONTROL
+  calculation = 'smoke'
+  title       = 'namelist smoke'
+/

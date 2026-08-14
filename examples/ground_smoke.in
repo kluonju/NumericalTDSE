@@ -1,0 +1,32 @@
+! Tiny Lanczos ground-state run for ctest (1D HO, E_0 = ω/2 = 0.5).
+&CONTROL
+  calculation = 'ground'
+  title       = 'ground-state smoke'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 12
+  L         = 6.0
+/
+
+&TIME
+  krylov_dim = 8
+/
+
+&SYSTEM
+  trap  = 'harmonic'
+  omega = 1.0
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.4
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
