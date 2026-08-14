@@ -192,6 +192,13 @@ set_tests_properties(tdse_harmonic_2e2d_smoke PROPERTIES
     TIMEOUT 300
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+add_test(NAME tdse_harmonic_2e2d_ground
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/harmonic_2e2d.in
+)
+set_tests_properties(tdse_harmonic_2e2d_ground PROPERTIES
+    TIMEOUT 300
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 
 if(NUMTDSE_MPI AND MPI_CXX_FOUND AND MPIEXEC_EXECUTABLE)
     set(_numtdse_mpi_preflags)
