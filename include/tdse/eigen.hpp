@@ -9,8 +9,8 @@
  *             operator is not bounded below). Excited states use a
  *             nodal/Hermite guess plus a few imaginary-time RK4 steps in
  *             the orthogonal complement.
- *   ITP     — imaginary-time filter ∂τψ = −Hψ with Gram–Schmidt. If
- *             propagator='krylov', RK4 imag is used instead of exp(−Hτ).
+ *   ITP     — imaginary-time filter ∂τψ = −Hψ with Gram–Schmidt.
+ *             Krylov exp(−Hτ) zeros Ritz values below energy_floor.
  *
  * Nonlinear orbitals (λ ρ ≠ 0): SCF with an inner Lanczos, or orbital ITP.
  */
@@ -247,12 +247,7 @@ std::vector<EigenPair<D>> lanczos_lowest(double prec,
     const Eigen::VectorXd Teval = es.eigenvalues();
     const Eigen::MatrixXd Q = es.eigenvectors();
 
-    double e_floor = -1.0;
-    if (p.trap == TrapKind::Harmonic) {
-        e_floor = -0.05;
-    } else if (p.trap == TrapKind::SoftAtom) {
-        e_floor = -0.5 * p.Z * p.Z - 10.0;
-    }
+    const double e_floor = energy_floor(p);
 
     struct Cand {
         int k = 0;
@@ -363,9 +358,11 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
         } else {
             // Higher states: imag-time polish in the orthogonal complement.
             // A large Krylov space of the MW kinetic operator is not bounded below.
+            // RK4 with a large τ is unstable, so cap the polish step.
+            const double tau = std::min(p.dt, 0.05);
             for (int s = 0; s < polish; ++s) {
                 orthogonalize(prec, trial, defs);
-                step_rk4_imag(prec, trial, ops, V, p.dt);
+                step_rk4_imag(prec, trial, ops, V, tau);
                 crop(trial, prec);
                 normalize(trial);
             }
@@ -400,7 +397,6 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
                                      int n_states,
                                      std::ostream *history) {
     const int nsteps = std::max(1, std::min(p.eigen_maxiter, static_cast<int>(std::llround(p.T / p.dt))));
-    const double res_thr = residual_threshold(p);
     std::vector<std::unique_ptr<CplxFun<D>>> found;
     std::vector<EigenPair<D>> out;
 
@@ -414,15 +410,12 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
 
         double E_prev = 0.0;
         int used = 0;
+        CplxFun<D> best(ops.mra);
+        copy_into(best, *psi);
+        double E_best = energy_expectation(prec, *psi, ops, V);
         for (int s = 0; s < nsteps; ++s) {
             orthogonalize(prec, *psi, prev);
-            if (p.propagator == Propagator::Krylov) {
-                // exp(−Hτ) on the MW kinetic operator amplifies spurious negative
-                // modes; RK4 on ∂τψ = −Hψ stays in the basin of the trial.
-                step_rk4_imag(prec, *psi, ops, V, p.dt);
-            } else {
-                step_imaginary(prec, *psi, ops, V, p);
-            }
+            step_imaginary(prec, *psi, ops, V, p);
             crop(*psi, prec);
             if (norm(*psi) < 1.0e-18) {
                 throw std::runtime_error("imaginary-time step collapsed the wave function; decrease dt");
@@ -434,6 +427,18 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
             const double E = energy_expectation(prec, *psi, ops, V);
             const double res = hamiltonian_residual(prec, *psi, ops, V, E);
             ++used;
+
+            if (std::isfinite(E) && E < E_best) {
+                E_best = E;
+                copy_into(best, *psi);
+            }
+            const bool diverged = !std::isfinite(E) || E > E_best + 2.0 || res > 50.0;
+            if (diverged) {
+                println(0, "  ITP n=" << k << " diverged at step " << (s + 1) << "; restoring lowest energy");
+                copy_into(*psi, best);
+                normalize(*psi);
+                break;
+            }
 
             if (history != nullptr && parallel::io_rank() && k == 0) {
                 Observables o;
@@ -455,7 +460,12 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
                 println(0, ss.str());
             }
 
-            if (s > 0 && std::abs(E - E_prev) < p.eigen_thr && res < res_thr) {
+            // MW residual is not a reliable stop; |ΔE| and overlap are.
+            const double ov = (history != nullptr) ? overlap_ho_eigen(prec, *psi, p, k) : 0.0;
+            if (s > 0 && std::abs(E - E_prev) < p.eigen_thr) {
+                break;
+            }
+            if (ov > 0.995) {
                 break;
             }
             E_prev = E;
@@ -707,11 +717,7 @@ int simulate_stationary_orbitals(const Parameters &p) {
                     lower.push_back(orbs[static_cast<std::size_t>(j)].get());
                 }
                 orthogonalize(p.prec, *orbs[static_cast<std::size_t>(i)], lower);
-                if (p.propagator == Propagator::Krylov) {
-                    step_rk4_imag(p.prec, *orbs[static_cast<std::size_t>(i)], ops, *V, p.dt);
-                } else {
-                    step_imaginary(p.prec, *orbs[static_cast<std::size_t>(i)], ops, *V, p);
-                }
+                step_imaginary(p.prec, *orbs[static_cast<std::size_t>(i)], ops, *V, p);
                 crop(*orbs[static_cast<std::size_t>(i)], p.prec);
                 normalize(*orbs[static_cast<std::size_t>(i)]);
                 orthogonalize(p.prec, *orbs[static_cast<std::size_t>(i)], lower);

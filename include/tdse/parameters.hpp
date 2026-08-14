@@ -116,6 +116,17 @@ inline bool is_stationary(const Parameters &p) {
     return p.job == JobKind::Ground || p.job == JobKind::Eigen;
 }
 
+/** Physical lower bound used to discard spurious MW-kinetic Ritz values. */
+inline double energy_floor(const Parameters &p) {
+    if (p.trap == TrapKind::Harmonic) {
+        return -0.05;
+    }
+    if (p.trap == TrapKind::SoftAtom) {
+        return -0.5 * p.Z * p.Z - 10.0;
+    }
+    return -1.0;
+}
+
 Parameters parse_cli(int argc, char **argv);
 void apply_smoke_defaults(Parameters &p);
 int mra_dimension(const Parameters &p);

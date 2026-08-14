@@ -70,7 +70,8 @@ void expm_krylov(double prec,
                  const ApplyOp<D> &applyA,
                  double dt,
                  int m,
-                 TimeKind kind = TimeKind::Real) {
+                 TimeKind kind = TimeKind::Real,
+                 double eval_floor = -1.0e300) {
     if (m < 2) {
         throw std::invalid_argument("Krylov dimension must be >= 2");
     }
@@ -136,9 +137,16 @@ void expm_krylov(double prec,
     for (int k = 0; k < m_eff; ++k) {
         std::complex<double> acc = 0.0;
         for (int j = 0; j < m_eff; ++j) {
-            const std::complex<double> phase = (kind == TimeKind::Imag)
-                    ? std::exp(std::complex<double>(-eval(j) * dt, 0.0))
-                    : std::exp(std::complex<double>(0.0, -eval(j) * dt));
+            std::complex<double> phase(0.0, 0.0);
+            if (kind == TimeKind::Imag) {
+                // MW kinetic is not bounded below; exp(+|λ|τ) on those
+                // Ritz values grows junk. Kill anything under the physical floor.
+                phase = (eval(j) < eval_floor)
+                                ? std::complex<double>(0.0, 0.0)
+                                : std::exp(std::complex<double>(-eval(j) * dt, 0.0));
+            } else {
+                phase = std::exp(std::complex<double>(0.0, -eval(j) * dt));
+            }
             acc += Q(k, j) * phase * Q(0, j);
         }
         coeff(k) = nrm0 * acc;
@@ -176,7 +184,7 @@ void step_krylov(double prec, CplxFun<D> &psi, OperatorSet<D> &ops, mrcpp::Funct
 template <int D>
 void step_krylov_imag(double prec, CplxFun<D> &psi, OperatorSet<D> &ops, mrcpp::FunctionTree<D> &V, double dt, int m) {
     ApplyOp<D> H = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_hamiltonian(prec, out, ops, in, V); };
-    expm_krylov(prec, psi, H, dt, m, TimeKind::Imag);
+    expm_krylov(prec, psi, H, dt, m, TimeKind::Imag, energy_floor(ops.p));
 }
 
 /** RK4 on ∂_τ ψ = −H ψ (static V). */
@@ -242,7 +250,7 @@ void step_split_imag(double prec,
                      double dt) {
     apply_potential_damp(prec, psi, V, 0.5 * dt);
     ApplyOp<D> T = [&](CplxFun<D> &out, CplxFun<D> &in) { apply_kinetic_cplx(prec, out, ops, in); };
-    expm_krylov(prec, psi, T, dt, ops.p.krylov_dim, TimeKind::Imag);
+    expm_krylov(prec, psi, T, dt, ops.p.krylov_dim, TimeKind::Imag, energy_floor(ops.p));
     apply_potential_damp(prec, psi, V, 0.5 * dt);
 }
 

@@ -211,7 +211,7 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 - **`L`**：波包不要碰到 \(\pm L\)。自由高斯会扩散、会飞走，盒子要加大（`free_boost.in` 用 `L = 12`）。
 - **`dt`**：RK4 不正交，步长宜小，或开 `renormalize`。Krylov 更接近幺正。1D 动能用 `split` + TEO 很自然。
 - **`propagator`**：任意维默认 Krylov。1D `split` 会自动改用 Legendre 基。
-- **定态**：`lanczos` 从 \(H\) 的 Krylov 空间取基态（重叠不够就加大 `krylov_dim`）；激发态用带节点的初猜再加几步虚时 RK4。`itp` 把 `dt`、`T` 当作虚时；若 `propagator = 'krylov'`，虚时改用 RK4 而不是 `exp(−Hτ)`。轨道模式且 \(\lambda\neq 0\) 时，外层再套一层 SCF。
+- **定态**：`lanczos` 从 \(H\) 的 Krylov 空间取基态（重叠不够就加大 `krylov_dim`）；激发态用带节点的初猜再加几步虚时 RK4。`itp` 把 `dt`、`T` 当作虚时。Krylov 虚时的 `exp(−Hτ)` 会丢掉低于物理能量下限的 Ritz 值（多小波动能算符没有下界）。轨道模式且 \(\lambda\neq 0\) 时，外层再套一层 SCF。
 
 ### 基态与最低本征态
 
@@ -222,7 +222,7 @@ python3 examples/plot_wavefunction.py ground_1d_n0 --analytic hoeig --n 0 --omeg
 
 **Lanczos（默认）。** 从光滑初猜建 \(H\) 的 Krylov 空间。多小波动能算子没有下界，代数上最小的 Ritz 值是虚假模；物理态是与初猜重叠最大的 Ritz 向量。基态这样求。更高的态用带节点的（Hermite）初猜，并在正交补里做几步虚时 RK4。\(\lVert(H-E)\psi\rVert/\lVert\psi\rVert\) 是对多小波算子的残差（即使 \(|\langle\psi_\mathrm{num}|\psi_n\rangle|>0.99\)，残差仍可能偏大）。
 
-**虚时。** 令 \(t=-i\tau\)，则 \(\partial_\tau\psi=-H\psi\)。高能成分衰减，每步归一化。激发态按顺序求，并用 Gram–Schmidt 正交。`n_states = 1` 时 CSV 是 \(E(\tau)\) 历史（列与 TDSE 相同）。多态或 Lanczos 写出谱文件（`state,energy,residual,…`）。若 `propagator = 'krylov'`，虚时改用 RK4：Krylov 的 `exp(−Hτ)` 会放大多小波动能里虚假的负能模。
+**虚时。** 令 \(t=-i\tau\)，则 \(\partial_\tau\psi=-H\psi\)。高能成分衰减，每步归一化。激发态按顺序求，并用 Gram–Schmidt 正交。`n_states = 1` 时 CSV 是 \(E(\tau)\) 历史（列与 TDSE 相同）。多态或 Lanczos 写出谱文件（`state,energy,residual,…`）。Krylov 虚时会丢掉低于物理下限的 Ritz 值，避免虚假负能模按 \(\exp(+|E|\tau)\) 放大。收敛看 \(|\Delta E|\)，不以 MW 残差为准。
 
 各向同性谐振子解析能（含 2D/3D 简并）：\(E=\omega(N+D/2)\)，壳层 \(N=n_1+\cdots+n_D\)。波函数重叠：一维对所有 \(n\) 填写，\(D>1\) 只填基态。
 
