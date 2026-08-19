@@ -1,0 +1,36 @@
+! Tiny 2D hydrogen ground (ctest). Adaptive MW, V = −Z/r. Not a converged energy.
+&CONTROL
+  calculation = 'ground'
+  title       = '2D hydrogen smoke'
+  prefix      = 'hydrogen_2d_smoke'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-3
+  order     = 5
+  max_depth = 12
+  L         = 10.0
+/
+
+&TIME
+  krylov_dim = 10
+  kinetic    = 'abgv'
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 1
+  trap      = 'atom'
+  Z         = 1.0
+  soft_a    = 0.0
+/
+
+&INITIAL
+  x0 = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/

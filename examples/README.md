@@ -38,6 +38,8 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `eigen_1d_precise.in` | tighter four HO states | 更高精度四态 | \(\lvert\Delta E\rvert\sim10^{-5}\) |
 | `ground_itp.in` | HO ground by ITP | 虚时基态 | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 1D soft-Coulomb ground | 软库仑基态 | residual |
+| `hydrogen_2d.in` | 2D hydrogen, adaptive MW | 二维氢原子 | \(E=-2\) |
+| `hydrogen_3d.in` | 3D hydrogen, adaptive MW | 三维氢原子 | \(E=-1/2\) |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | 两轨道（无相互作用） | \(0.5, 1.5\) |
 | `helium_ground.in` | exact 1D 2e singlet GS | 精确双电子单重态基态 | residual |
 | `ho_2e_singlet.in` | 1D HO 2e singlet GS | 一维双电子单重态 | \(E=\omega=1\) |

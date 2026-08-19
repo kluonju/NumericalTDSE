@@ -1,0 +1,43 @@
+! 2D hydrogenic atom on an adaptive FunctionTree<2>: V = −Z/r, E_1s = −2 Z².
+! The MW grid refines at the Coulomb cusp; a uniform mesh cannot.
+! 二维氢原子。自适应小波在核处加密。解析基态 E = −2。
+&CONTROL
+  calculation = 'ground'
+  title       = '2D hydrogen ground state'
+  prefix      = 'hydrogen_2d'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-4
+  order     = 7
+  max_depth = 20
+  L         = 16.0
+/
+
+&TIME
+  krylov_dim = 16
+  kinetic    = 'abgv'
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 1
+  trap      = 'atom'
+  Z         = 1.0
+  soft_a    = 0.0
+/
+
+&INITIAL
+  x0 = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
+
+&OUTPUT
+  plot   = 'hydrogen_2d'
+  n_plot = 121
+/

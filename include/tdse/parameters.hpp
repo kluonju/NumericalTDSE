@@ -184,6 +184,9 @@ inline double energy_floor(const Parameters &p) {
         return -0.05;
     }
     if (p.trap == TrapKind::SoftAtom) {
+        if (p.spatial_dim == 2) {
+            return -2.0 * p.Z * p.Z - 10.0;
+        }
         return -0.5 * p.Z * p.Z - 10.0;
     }
     return -1.0;

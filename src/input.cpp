@@ -237,7 +237,8 @@ void set_trap(Parameters &p, const std::string &raw, const std::string &origin) 
         p.trap = TrapKind::Harmonic;
     } else if (s == "free" || s == "none" || s == "particle") {
         p.trap = TrapKind::None;
-    } else if (s == "atom" || s == "soft" || s == "coulomb" || s == "softatom") {
+    } else if (s == "atom" || s == "soft" || s == "coulomb" || s == "softatom" || s == "hydrogen" ||
+               s == "hydrogenic") {
         p.trap = TrapKind::SoftAtom;
     } else {
         throw std::invalid_argument(origin + ": unknown trap '" + raw + "' (harmonic|free|atom)");
@@ -812,6 +813,9 @@ void finalize_parameters(Parameters &p) {
     if (p.spatial_dim < 1 || p.spatial_dim > 3) {
         throw std::invalid_argument("SYSTEM dim must be 1, 2 or 3");
     }
+    if (p.trap == TrapKind::SoftAtom && p.spatial_dim == 1 && std::abs(p.soft_a) < 1.0e-12) {
+        throw std::invalid_argument("1D Coulomb −Z/|x| is unbounded below; set soft_a > 0 (or use dim=2 or 3)");
+    }
     if (p.n_electrons < 1 || p.n_electrons > 4) {
         throw std::invalid_argument("SYSTEM electrons must be 1..4");
     }
@@ -893,9 +897,9 @@ void write_input_template(std::ostream &os) {
   dim       = 1                   ! spatial dimension 1|2|3
   electrons = 1                   ! 1..4
   mode      = 'exact'             ! 'exact' (N-body tree, D=n_e*dim<=4) | 'orbital'
-  trap      = 'harmonic'          ! 'harmonic' | 'free' | 'atom'
+  trap      = 'harmonic'          ! 'harmonic' | 'free' | 'atom' (Coulomb; a=0 is hydrogenic in 2D/3D)
   omega     = 1.0
-  soft_a    = 1.0
+  soft_a    = 1.0                 ! 0 → bare −Z/r (2D/3D hydrogen); 1D requires a>0
   Z         = 1.0
   lambda    = 0.0                 ! orbital-mode contact interaction
   fermion   = .false.             ! Slater initial data for exact 2e/3e in 1D; 2e → triplet

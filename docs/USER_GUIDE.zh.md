@@ -218,7 +218,7 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 | `mode` | `'exact'` | `'exact'` 或 `'orbital'` |
 | `trap` | `'harmonic'` | `'harmonic'` / `'free'` / `'atom'` |
 | `omega` | 1 | 谐振子频率 |
-| `soft_a` | 1 | 软库仑长度 |
+| `soft_a` | 1 | 软库仑长度。`0` 表示裸 \(-\mathrm{Z}/r\)（二维/三维氢原子）；一维必须 \(a>0\) |
 | `Z` | 1 | 核电荷 |
 | `lambda` | 0 | 轨道接触 \(\lambda\) |
 | `fermion` | `.false.` | 精确一维 2e/3e Slater 初态；2e 等价于三重态 |
@@ -338,6 +338,15 @@ python3 examples/plot_inversion.py invert_2e1d_observables.csv
 **虚时。** 令 \(t=-i\tau\)，则 \(\partial_\tau\psi=-H\psi\)。高能成分衰减，每步归一化。激发态按顺序求，并用 Gram–Schmidt 正交。`n_states = 1` 时 CSV 是 \(E(\tau)\) 历史（列与 TDSE 相同）。多态或 Lanczos 写出谱文件（`state,energy,residual,…`）。虚时动能用热半群 \(\exp(-T\tau)=\exp((\tau/2)\nabla^2)\)；不用 MW 哈密顿的 Krylov/RK4，因为那个算符没有下界。收敛看 \(|\Delta E|\)，不以 MW 残差为准。
 
 各向同性谐振子解析能（含 2D/3D 简并）：\(E=\omega(N+D/2)\)，壳层 \(N=n_1+\cdots+n_D\)。波函数重叠：一维对所有 \(n\) 填写，\(D>1\) 只填基态。
+
+**氢原子库仑势（自适应小波）。** 单电子、`trap = 'atom'` 且 `soft_a = 0` 就是氢原子问题 \(V=-Z/r\)。自适应多小波在核尖点加密，在指数尾巴处保持粗糙——均匀网格做不到。初猜是 Slater 1s（不是高斯）。解析能：三维 \(E_n=-Z^2/(2n^2)\)；二维 \(E_n=-Z^2/[2(n-1/2)^2]\)，故二维基态为 \(-2Z^2\)。动能用 `kinetic = 'abgv'`（波函数有尖点）；不做热核抛光，以免抹平尖点。`prec = 1d-4` 时三维收回 \(E\approx-0.50005\)（解析 \(-1/2\)），1s 重叠为 \(1\)；二维 \(\langle H\rangle\) 会偏高约百分之一，因为二维尖点更强。一维 \(-\mathrm{Z}/|x|\) 没有下界，必须 `soft_a > 0`。
+
+```bash
+./build/bin/tdse examples/hydrogen_2d.in    # E = −2, FunctionTree<2>
+./build/bin/tdse examples/hydrogen_3d.in    # E = −1/2, FunctionTree<3>
+```
+
+两电子密度反演仍走均匀组态格子和软 \(V_{ee}\)。氢原子**束缚态**走 MW 定态求解器，不是 `calculation = 'invert'`。
 
 ---
 
@@ -471,6 +480,8 @@ E_n=\omega\bigl(n+\tfrac12\bigr)\quad(1\mathrm{D}),\qquad
 | `eigen_1d_precise.in` | 更高精度四态 | \(\lvert\Delta E\rvert\sim10^{-5}\) |
 | `ground_itp.in` | 虚时求基态 | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 一维软库仑基态 | 只看残差 |
+| `hydrogen_2d.in` | 二维氢原子，自适应 MW | \(E=-2\)，1s 重叠 |
+| `hydrogen_3d.in` | 三维氢原子，自适应 MW | \(E=-1/2\)，1s 重叠 |
 | `orbitals_ground.in` | 两谐振子轨道，\(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | 精确一维双电子基态 | 只看残差 |
 | `invert_smoke.in` | 一维双电子反演短跑 | \(n\) 的 L1 下降 |

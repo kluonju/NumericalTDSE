@@ -91,6 +91,14 @@ void maybe_plot(CplxFun<D> &psi, const Parameters &p, const std::string &tag) {
         plot.surfPlot({n, n}, psi.re, stem + "_re");
         plot.surfPlot({n, n}, psi.im, stem + "_im");
         println(0, "  wrote 2D surface plots (" << n << "×" << n << ") with prefix '" << stem << "'");
+    } else if constexpr (D == 3) {
+        mrcpp::Coord<3> origin{-p.L, 0.0, 0.0};
+        mrcpp::Coord<3> length{2.0 * p.L, 0.0, 0.0};
+        mrcpp::Plotter<3> plot(origin);
+        plot.setRange(length);
+        plot.linePlot({p.n_plot_points}, psi.re, stem + "_re");
+        plot.linePlot({p.n_plot_points}, psi.im, stem + "_im");
+        println(0, "  wrote 3D line plots along x (y=z=0) with prefix '" << stem << "'");
     }
 }
 

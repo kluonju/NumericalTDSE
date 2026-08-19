@@ -21,7 +21,7 @@ mindmap
       H equals T plus V
       T is minus one-half Laplacian
       V trap plus dipole laser
-      Traps HO free soft-atom
+      Traps HO free hydrogen
       Init displaced Gaussian
     Representation
       Exact N-body tree
@@ -215,6 +215,8 @@ python3 examples/plot_inversion.py invert_2e1d_observables.csv
 ./examples/run_and_plot.sh examples/harmonic_1d.in
 ./build/bin/tdse examples/ground_1d.in
 ./build/bin/tdse examples/eigen_1d.in
+./build/bin/tdse examples/hydrogen_2d.in    # 2D hydrogen, E = −2
+./build/bin/tdse examples/hydrogen_3d.in    # 3D hydrogen, E = −1/2
 ```
 
 段名：`&CONTROL` `&MRA` `&TIME` `&SYSTEM` `&INITIAL` `&LASER` `&OUTPUT` `&PARALLEL`  

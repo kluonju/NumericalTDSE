@@ -102,12 +102,17 @@ protected:
         }
 
         // Single particle in D dimensions, displaced along x.
-        const double nrm = std::pow(p_.alpha / PI, 0.25 * D);
         double r2 = 0.0;
         for (int d = 0; d < D; ++d) {
             const double x = r[d] - ((d == 0) ? center_ : 0.0);
             r2 += x * x;
         }
+        if (p_.trap == TrapKind::SoftAtom && D >= 2) {
+            // Slater 1s: exp(−ζ r). Adaptive MW needs the Coulomb cusp, not a Gaussian.
+            const double zeta = (D == 2) ? (2.0 * p_.Z) : p_.Z;
+            return std::exp(-zeta * std::sqrt(r2));
+        }
+        const double nrm = std::pow(p_.alpha / PI, 0.25 * D);
         return nrm * std::exp(-0.5 * p_.alpha * r2);
     }
 
@@ -188,8 +193,8 @@ private:
             case TrapKind::SoftAtom: {
                 auto nucleus = [&](double r2) {
                     double den = std::sqrt(r2 + p_.soft_a * p_.soft_a);
-                    if (den < 1.0e-15) {
-                        den = 1.0e-15;
+                    if (den < 1.0e-12) {
+                        den = 1.0e-12;
                     }
                     return -p_.Z / den;
                 };
@@ -416,10 +421,37 @@ inline std::complex<double> ho_eigen_1d(double x, int n, double omega) {
     return nrm * std::exp(-0.5 * omega * x * x) * hermite_phys(n, xi);
 }
 
+template <int D>
+inline double coord_radius(const mrcpp::Coord<D> &r) {
+    double s = 0.0;
+    for (int d = 0; d < D; ++d) {
+        s += r[d] * r[d];
+    }
+    return std::sqrt(s);
+}
+
+/** Normalized hydrogenic 1s. 3D: (Z³/π)^{1/2} e^{−Zr}; 2D: 2Z √(2/π) e^{−2Zr}. */
+template <int D>
+inline double hydrogen_1s_eval(const mrcpp::Coord<D> &r, double Z) {
+    const double rad = coord_radius<D>(r);
+    if constexpr (D == 3) {
+        return std::sqrt(Z * Z * Z / PI) * std::exp(-Z * rad);
+    } else if constexpr (D == 2) {
+        return 2.0 * Z * std::sqrt(2.0 / PI) * std::exp(-2.0 * Z * rad);
+    } else {
+        return std::exp(-Z * std::abs(r[0]));
+    }
+}
+
 /** 2D hydrogen (V = −Z/r) level n = 1,2,… : E = −Z² / [2(n−1/2)²]. Degeneracy 2n−1. */
 inline double hydrogen_2d_energy(double Z, int n_level) {
     const double half = static_cast<double>(n_level) - 0.5;
     return -0.5 * Z * Z / (half * half);
+}
+
+/** 3D hydrogen (V = −Z/r) level n = 1,2,… : E = −Z² / (2 n²). Degeneracy n². */
+inline double hydrogen_3d_energy(double Z, int n_level) {
+    return -0.5 * Z * Z / static_cast<double>(n_level * n_level);
 }
 
 inline int hydrogen_2d_level(int k) {
@@ -438,8 +470,34 @@ inline int hydrogen_2d_level(int k) {
     }
 }
 
+inline bool is_bare_coulomb(const Parameters &p) {
+    return p.trap == TrapKind::SoftAtom && p.Z > 0.0 && std::abs(p.soft_a) < 1.0e-12;
+}
+
 inline bool is_bare_coulomb_2d(const Parameters &p) {
-    return p.trap == TrapKind::SoftAtom && p.spatial_dim == 2 && p.Z > 0.0 && std::abs(p.soft_a) < 1.0e-12;
+    return is_bare_coulomb(p) && p.spatial_dim == 2;
+}
+
+/** One electron, bare Coulomb, 2D or 3D (the MW hydrogenic problem). */
+inline bool is_hydrogenic_1e(const Parameters &p) {
+    return is_bare_coulomb(p) && p.n_electrons == 1 && p.lambda_contact == 0.0 &&
+           (p.spatial_dim == 2 || p.spatial_dim == 3);
+}
+
+inline int hydrogen_3d_level(int k) {
+    int n = 1;
+    int count = 0;
+    for (;;) {
+        const int deg = n * n;
+        if (count + deg > k) {
+            return n;
+        }
+        count += deg;
+        ++n;
+        if (n > 32) {
+            return n;
+        }
+    }
 }
 
 /** Isotropic HO energy of the n-th lowest state (0-based), including degeneracy. */
@@ -447,10 +505,13 @@ inline double analytic_eigen_energy(const Parameters &p, int n) {
     if (n < 0) {
         return std::numeric_limits<double>::quiet_NaN();
     }
-    if (is_bare_coulomb_2d(p) && p.lambda_contact == 0.0) {
-        if (p.n_electrons == 1) {
+    if (is_hydrogenic_1e(p)) {
+        if (p.spatial_dim == 2) {
             return hydrogen_2d_energy(p.Z, hydrogen_2d_level(n));
         }
+        return hydrogen_3d_energy(p.Z, hydrogen_3d_level(n));
+    }
+    if (is_bare_coulomb_2d(p) && p.lambda_contact == 0.0) {
         if (is_exact_nbody(p) && p.n_electrons == 2 && !p.ee && !p.fermion) {
             // Singlet IP: 1s² then 1s2p. E_1 = −2 Z², E_2 = −2 Z² / 9.
             if (n == 0) {

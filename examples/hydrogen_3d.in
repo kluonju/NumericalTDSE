@@ -1,0 +1,44 @@
+! 3D hydrogenic atom on an adaptive FunctionTree<3>: V = −Z/r, E_1s = −Z²/2.
+! Adaptive multiwavelets refine at r = 0 (the Coulomb cusp) and stay coarse
+! in the exponential tail — the reason MW beats a uniform grid for hydrogen.
+! 三维氢原子。解析基态 E = −1/2。核处自适应加密。
+&CONTROL
+  calculation = 'ground'
+  title       = '3D hydrogen ground state'
+  prefix      = 'hydrogen_3d'
+  ident_check = .false.
+/
+
+&MRA
+  prec      = 1.0d-4
+  order     = 7
+  max_depth = 20
+  L         = 20.0
+/
+
+&TIME
+  krylov_dim = 16
+  kinetic    = 'abgv'
+/
+
+&SYSTEM
+  dim       = 3
+  electrons = 1
+  trap      = 'atom'
+  Z         = 1.0
+  soft_a    = 0.0
+/
+
+&INITIAL
+  x0 = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/
+
+&OUTPUT
+  plot   = 'hydrogen_3d'
+  n_plot = 401
+/

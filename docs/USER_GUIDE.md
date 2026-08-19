@@ -218,7 +218,7 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 | `mode` | `'exact'` | `'exact'` or `'orbital'` |
 | `trap` | `'harmonic'` | `'harmonic'` / `'free'` / `'atom'` |
 | `omega` | 1 | HO frequency |
-| `soft_a` | 1 | soft-Coulomb length |
+| `soft_a` | 1 | soft-Coulomb length. `0` is bare \(-\mathrm{Z}/r\) (hydrogenic) in 2D/3D; 1D requires \(a>0\) |
 | `Z` | 1 | nuclear charge |
 | `lambda` | 0 | orbital contact \(\lambda\) |
 | `fermion` | `.false.` | exact 1D: Slater initial data for 2e or 3e; 2e implies triplet |
@@ -338,6 +338,15 @@ On the 1D HO, \(E_n=\omega(n+1/2)\) is recovered systematically if you tighten t
 **Imaginary time.** Substitute \(t=-i\tau\) so \(\partial_\tau\psi=-H\psi\). High-energy components decay; after each step the wave function is renormalized. Excited states are obtained sequentially with Gram–Schmidt. For `n_states = 1` the CSV is an \(E(\tau)\) history (same columns as TDSE). For several states, or for Lanczos, the CSV is a spectrum (`state,energy,residual,…`). The imag-time kinetic step is the heat semigroup \(\exp(-T\tau)=\exp((\tau/2)\nabla^2)\); Krylov/RK4 on the MW Hamiltonian is not used because that operator is unbounded below. Convergence is on \(|\Delta E|\), not the MW residual.
 
 Isotropic HO analytic energy (including 2D/3D degeneracy): \(E=\omega(N+D/2)\) with shell \(N=n_1+\cdots+n_D\). Wave-function overlap is filled for 1D all \(n\), and for \(D>1\) only the ground state.
+
+**Hydrogenic Coulomb (adaptive MW).** One electron in 2D or 3D with `trap = 'atom'` and `soft_a = 0` is the hydrogenic problem \(V=-Z/r\). Adaptive multiwavelets refine at the nuclear cusp and stay coarse in the exponential tail — a uniform grid cannot. The trial is a Slater 1s (not a Gaussian). Analytic energies: 3D \(E_n=-Z^2/(2n^2)\); 2D \(E_n=-Z^2/[2(n-1/2)^2]\) so the 2D ground state is \(-2Z^2\). Keep `kinetic = 'abgv'` (the wave function has a cusp); heat-kernel polish is skipped so the cusp is not smeared. At `prec = 1d-4`, 3D recovers \(E\approx-0.50005\) (analytic \(-1/2\)) with 1s overlap \(1\); 2D \(\langle H\rangle\) is a percent high because the 2D cusp is stronger. 1D \(-\mathrm{Z}/|x|\) is unbounded below; keep `soft_a > 0` there.
+
+```bash
+./build/bin/tdse examples/hydrogen_2d.in    # E = −2, FunctionTree<2>
+./build/bin/tdse examples/hydrogen_3d.in    # E = −1/2, FunctionTree<3>
+```
+
+Two-electron inversion still uses a uniform configuration-space grid and a soft \(V_{ee}\). Hydrogenic *bound states* go through the MW stationary solver, not `calculation = 'invert'`.
 
 ---
 
@@ -471,6 +480,8 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `eigen_1d_precise.in` | tighter four HO states | \(\lvert\Delta E\rvert\sim10^{-5}\) |
 | `ground_itp.in` | HO ground by imaginary time | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 1D soft-Coulomb ground | residual only |
+| `hydrogen_2d.in` | 2D hydrogen, adaptive MW | \(E\approx-2.026\) vs \(-2\), 1s overlap \(1\) |
+| `hydrogen_3d.in` | 3D hydrogen, adaptive MW | \(E\approx-0.50005\) vs \(-1/2\), 1s overlap \(1\) |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | \(\varepsilon=0.5,1.5\) |
 | `helium_ground.in` | exact 1D 2e ground | residual only |
 | `invert_smoke.in` | 2e-1D inversion ctest | L1 of \(n\) falls |

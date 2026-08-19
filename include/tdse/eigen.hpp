@@ -90,7 +90,27 @@ double hamiltonian_residual(double prec,
 
 template <int D>
 double overlap_ho_eigen(double prec, CplxFun<D> &psi, const Parameters &p, int n) {
-    if (p.trap != TrapKind::Harmonic || p.omega <= 0.0 || n < 0) {
+    if (n < 0) {
+        return 0.0;
+    }
+    if constexpr (D == 2 || D == 3) {
+        if (is_hydrogenic_1e(p) && n == 0) {
+            CplxFun<D> ana(psi.mra);
+            auto re_f = [&](const mrcpp::Coord<D> &r) -> double { return hydrogen_1s_eval<D>(r, p.Z); };
+            auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+                (void)r;
+                return 0.0;
+            };
+            mrcpp::project<D, double>(prec, ana.re, re_f);
+            mrcpp::project<D, double>(prec, ana.im, im_f);
+            const double nrm = norm(psi) * norm(ana);
+            if (nrm <= 0.0) {
+                return 0.0;
+            }
+            return std::abs(inner(psi, ana)) / nrm;
+        }
+    }
+    if (p.trap != TrapKind::Harmonic || p.omega <= 0.0) {
         return 0.0;
     }
     if (p.lambda_contact != 0.0) {
@@ -351,6 +371,32 @@ void project_eigen_guess(double prec, CplxFun<D> &psi, const Parameters &p, int 
             return;
         }
     }
+    if constexpr (D == 2 || D == 3) {
+        if (p.trap == TrapKind::SoftAtom && p.n_electrons == 1) {
+            auto re_f = [&](const mrcpp::Coord<D> &r) -> double {
+                if (k <= 0) {
+                    return hydrogen_1s_eval<D>(r, p.Z);
+                }
+                double r2 = 0.0;
+                for (int d = 0; d < D; ++d) {
+                    r2 += r[d] * r[d];
+                }
+                double poly = 1.0;
+                for (int i = 0; i < k; ++i) {
+                    poly *= r[0];
+                }
+                const double zeta = (D == 2) ? (2.0 * p.Z) : p.Z;
+                return poly * std::exp(-zeta * std::sqrt(r2));
+            };
+            auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+                (void)r;
+                return 0.0;
+            };
+            mrcpp::project<D, double>(prec, psi.re, re_f);
+            mrcpp::project<D, double>(prec, psi.im, im_f);
+            return;
+        }
+    }
     if (p.trap == TrapKind::Harmonic && p.omega > 0.0 && k >= 0) {
         auto re_f = [&](const mrcpp::Coord<D> &r) -> double {
             double v = ho_eigen_1d(r[0], k, p.omega).real();
@@ -440,7 +486,10 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
             throw std::runtime_error("Lanczos returned no state");
         }
         if constexpr (D <= 3) {
-            heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, defs);
+            // Heat polish smears the Coulomb cusp; hydrogenic 1s is already the trial.
+            if (!is_hydrogenic_1e(p)) {
+                heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, defs);
+            }
         }
         fill_pair_observables(prec, one[0], ops, V, p, k);
         pairs.push_back(std::move(one[0]));
@@ -643,6 +692,11 @@ int simulate_stationary_exact(const Parameters &p) {
     OperatorSet<D> ops(MRA, p);
     TimeDependentPotential<D> pot(p);
     auto V = project_V(MRA, p.prec, pot, 0.0);
+    println(0, "  V nodes         : " << V->getNNodes());
+    if (p.trap == TrapKind::SoftAtom) {
+        println(0, "  nuclear trap    : −Z/sqrt(r²+a²)  Z=" << p.Z << "  a=" << p.soft_a
+                                                             << "  (adaptive MW refines at the nucleus)");
+    }
 
     const double center = eigen_trial_center(p);
     if (std::abs(center - p.x0) > 1.0e-12) {
