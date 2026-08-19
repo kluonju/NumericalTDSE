@@ -49,4 +49,4 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `ground_smoke.in` | Lanczos ctest | 基态短跑 | \(E=0.5\) |
 | `orbitals_smoke.in` | MPI ctest | MPI 短跑 | — |
 
-Tools: `plot_observables.py`, `plot_wavefunction.py`, `plot_inversion.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.
+Tools: `plot_observables.py`, `plot_wavefunction.py`, `plot_2e_wavefunction.py`, `plot_inversion.py`, `compare_analytic.py`, `analytic_ref.py`, `run_and_plot.sh`, `parallel.sh`.

@@ -2,10 +2,13 @@
 # Run a namelist job, then plot observables (and 1D wave functions if present).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BIN="${ROOT}/build/bin/tdse"
+BIN="${ROOT}/build-intel/bin/tdse"
+if [[ ! -x "$BIN" ]]; then
+    BIN="${ROOT}/build/bin/tdse"
+fi
 IN="${1:-${ROOT}/examples/harmonic_1d.in}"
 if [[ ! -x "$BIN" ]]; then
-    echo "Build first: cmake -S ${ROOT} -B ${ROOT}/build -DCMAKE_CXX_COMPILER=g++ && cmake --build ${ROOT}/build -j --target tdse"
+    echo "Build first: cmake -S ${ROOT} -B ${ROOT}/build-intel -DCMAKE_CXX_COMPILER=icpx && cmake --build ${ROOT}/build-intel -j --target tdse"
     exit 1
 fi
 "$BIN" "$IN"
@@ -45,6 +48,10 @@ if [[ -n "${PLOT}" ]]; then
             fi
             python3 "${ROOT}/examples/plot_wavefunction.py" "${PLOT}_${tag}" \
                 -o "${PLOT}_${tag}_psi.png" "${extra[@]+"${extra[@]}"}" || true
+        fi
+        if [[ -f "${PLOT}_${tag}_re.surf" ]]; then
+            python3 "${ROOT}/examples/plot_2e_wavefunction.py" "${PLOT}_${tag}" \
+                -o "${PLOT}_${tag}_psi.png" || true
         fi
     done
 fi

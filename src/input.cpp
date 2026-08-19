@@ -875,8 +875,8 @@ void write_input_template(std::ostream &os) {
 
 &OUTPUT
   output = 'observables.csv'
-  plot   = ''                     ! non-empty → 1D line plots at t=0 and t=T
-  n_plot = 800
+  plot   = ''                     ! non-empty → 1D .line or 2e .surf dumps
+  n_plot = 800                    ! 1D points; 2e surface is capped at 161×161
 /
 
 &PARALLEL

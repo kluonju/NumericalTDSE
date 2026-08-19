@@ -38,3 +38,8 @@
   n_states = 1
   method   = 'lanczos'
 /
+
+&OUTPUT
+  plot   = 'ho_2e_singlet'
+  n_plot = 121
+/

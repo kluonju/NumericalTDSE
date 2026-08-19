@@ -65,14 +65,32 @@ void maybe_plot(CplxFun<D> &psi, const Parameters &p, const std::string &tag) {
     if (p.plot_prefix.empty() || !parallel::io_rank()) {
         return;
     }
+    const std::string stem = p.plot_prefix + "_" + tag;
     if constexpr (D == 1) {
         mrcpp::Coord<1> origin{-p.L};
         mrcpp::Coord<1> length{2.0 * p.L};
         mrcpp::Plotter<1> plot(origin);
         plot.setRange(length);
-        plot.linePlot({p.n_plot_points}, psi.re, p.plot_prefix + "_" + tag + "_re");
-        plot.linePlot({p.n_plot_points}, psi.im, p.plot_prefix + "_" + tag + "_im");
-        println(0, "  wrote 1D line plots with prefix '" << p.plot_prefix << "_" << tag << "'");
+        plot.linePlot({p.n_plot_points}, psi.re, stem + "_re");
+        plot.linePlot({p.n_plot_points}, psi.im, stem + "_im");
+        println(0, "  wrote 1D line plots with prefix '" << stem << "'");
+    } else if constexpr (D == 2) {
+        // Exact 1D two-electron: configuration plane (x1, x2).
+        int n = p.n_plot_points;
+        if (n > 256) {
+            n = 161;
+        }
+        if (n < 16) {
+            n = 81;
+        }
+        mrcpp::Coord<2> origin{-p.L, -p.L};
+        mrcpp::Coord<2> ax{2.0 * p.L, 0.0};
+        mrcpp::Coord<2> ay{0.0, 2.0 * p.L};
+        mrcpp::Plotter<2> plot(origin);
+        plot.setRange(ax, ay);
+        plot.surfPlot({n, n}, psi.re, stem + "_re");
+        plot.surfPlot({n, n}, psi.im, stem + "_im");
+        println(0, "  wrote 2D surface plots (" << n << "×" << n << ") with prefix '" << stem << "'");
     }
 }
 
