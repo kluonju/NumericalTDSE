@@ -1,9 +1,8 @@
-! 2 electrons in 2D on an N^4 configuration-space grid (exact 2e, stored as 1e in 4D).
-! Tiny run for ctest; not a converged potential. Orbital CI: invert_2e2d_orbital_smoke.in.
+! 2e-in-2D orbital-CI inversion smoke (ctest). Not a converged potential.
 &CONTROL
   calculation = 'invert'
-  title       = '2e-2D / 4D-config inversion smoke'
-  prefix      = 'invert_2e2d_smoke'
+  title       = '2e-2D orbital-CI inversion smoke'
+  prefix      = 'invert_2e2d_orbital_smoke'
   ident_check = .false.
 /
 
@@ -28,11 +27,11 @@
   target  = 'self'
   guess   = 'scaled'
   scale   = 0.6
+  basis   = 'orbital'
+  n_orb   = 4
   n_grid  = 9
   gamma   = 0.40
   maxiter = 3
-  inner   = 12
-  tau     = 0.10
   check   = .true.
   tol     = 1.0d-3
 /

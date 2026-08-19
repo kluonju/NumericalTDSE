@@ -275,27 +275,30 @@ Used when `calculation = 'invert'`. Two-electron interacting inversion of \(n(\m
 |---|---|---|
 | `target` | `'self'` | `'self'`: ground-state density of the namelist trap, then recover \(v_\mathrm{ext}\). `'file'`: read `density_file` |
 | `guess` | `'scaled'` | `'scaled'` / `'harmonic'` / `'zero'` / `'atom'` / `'hx'` (\(v_s-\tfrac12 v_H\)) |
-| `n_grid` | 49 / 15 | points per spatial axis (forced odd). 1D default 49, 2D default 15 |
+| `n_grid` | 49 / 15 / 21 | points per spatial axis (forced odd). 1D default 49; 2D `config` 15; 2D `orbital` 21 |
 | `gamma` | 0.25 | step \(\gamma\) in \(v\leftarrow v+\gamma(w_0+\lvert r\rvert^\beta)(n-n^*)\) |
 | `beta` | 1 | tail weight \(\beta\) |
 | `w0` | 1 | weight floor; `0` freezes \(v(0)\) (paper) |
 | `tol` | `1d-4` | stop when \(\int\lvert n-n^*\rvert <\) this |
 | `maxiter` | 40 | outer iterations |
-| `inner` | 40 | imag-time steps per outer iteration |
+| `inner` | 40 | imag-time steps per outer iteration (`basis = 'config'` only) |
 | `tau` | 0.08 | imag-time step (implicit kinetic split) |
 | `scale` | 0.55 | scaled-trap guess |
 | `ncut` | `1d-3` | mask for \(v_s\) and the \(v\) RMS |
 | `check` | `.false.` | non-zero exit if the L1 error does not fall |
 | `ks_only` | `.false.` | skip interacting inversion; print \(v_s,v_H,v_c\) |
+| `basis` | `'config'` | `'config'`: exact 2e on an \(N^{2d}\) configuration-space grid. `'orbital'`: 2e-in-2D singlet CI in `n_orb` 2D HO orbitals (`dim=2` only) |
+| `n_orb` | 10 | 2D HO orbitals for `basis = 'orbital'` |
 | `density_file` | empty | target density if `target = 'file'` |
 
-**1e in 4D, not 2D-in-2D.** Two electrons in 2D physical space have a wave function \(\psi(x_1,y_1,x_2,y_2)\). That is a *single* Schrödinger equation in 4D configuration space: the Laplacian is 4D and \(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) is a local 4D potential. A CI in a 2D orbital basis (“2D in 2D”) needs two-electron integrals and is truncated. Fetched MRCPP is patched locally (`cmake/patch_mrcpp_d4.py`) so `FunctionTree<4>` works for exact TDSE / ground jobs (`examples/harmonic_2e2d.in`). Inversion still uses a uniform grid: a Peirs loop on an adaptive 4D tree is a separate step. The inverted object remains the physical \(v_\mathrm{ext}(x,y)\). The 1D helium model of the paper is the same idea with \(\psi(x_1,x_2)\) on an \(N\times N\) grid.
+**Two ways to invert 2e in 2D.** Both recover the physical \(v_\mathrm{ext}(x,y)\). Default `basis = 'config'` stores \(\psi(x_1,y_1,x_2,y_2)\) on an \(N^4\) grid: the Laplacian is 4D and \(v(r_1)+v(r_2)+W(\lvert r_1-r_2\rvert)\) is a local 4D potential (exact 2e in 2D, the same idea as the 1D helium model \(\psi(x_1,x_2)\) on \(N\times N\)). `basis = 'orbital'` expands each electron in 2D HO orbitals and diagonalizes the two-body Hamiltonian in the \(M\times M\) product basis (truncated CI; two-electron integrals are built once). Fetched MRCPP is patched locally (`cmake/patch_mrcpp_d4.py`) so `FunctionTree<4>` works for exact TDSE / ground jobs (`examples/harmonic_2e2d.in`). Inversion uses a uniform Cartesian grid in both cases.
 
 After \(v_\mathrm{ext}\) is found, the two-electron singlet KS inversion is algebraic, \(\varphi=\sqrt{n/2}\), \(v_s=(2\varphi)^{-1}\nabla^2\varphi+\mathrm{const}\), and \(v_c=v_s-\tfrac12 v_H-v_\mathrm{ext}\).
 
 ```bash
 ./build/bin/tdse examples/invert_2e1d.in
-./build/bin/tdse examples/invert_2e2d.in
+./build/bin/tdse examples/invert_2e2d.in            # exact 2e, N^4 config grid
+./build/bin/tdse examples/invert_2e2d_orbital.in    # 2e-in-2D HO CI
 python3 examples/plot_inversion.py invert_2e1d_observables.csv
 ```
 
@@ -472,7 +475,8 @@ has a closed \(\mu(t)\); energy is **not** conserved.
 | `helium_ground.in` | exact 1D 2e ground | residual only |
 | `invert_smoke.in` | 2e-1D inversion ctest | L1 of \(n\) falls |
 | `invert_2e1d.in` | TGK08 1D helium inversion | recover \(v_\mathrm{ext}\) |
-| `invert_2e2d.in` | 2e in 2D as 1e in 4D | recover \(v_\mathrm{ext}(x,y)\) |
+| `invert_2e2d.in` | 2e in 2D, \(N^4\) config grid | recover \(v_\mathrm{ext}(x,y)\) |
+| `invert_2e2d_orbital.in` | 2e in 2D, HO orbital CI | recover \(v_\mathrm{ext}(x,y)\) |
 
 Demo inputs use a coarse grid so they finish quickly. For stationary energies set `kinetic = 'bs'` and lower `prec` to `1d-5`–`1d-6` (see `ground_1d_precise.in`). For real-time work, also shrink `dt`.
 

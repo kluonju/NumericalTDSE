@@ -47,6 +47,11 @@ enum class InvertGuess {
     Hx        ///< v_s − ½ v_H (exact exchange, no correlation)
 };
 
+enum class InvertBasis {
+    Config,  ///< Exact 2e on a (2d)-dimensional configuration-space grid
+    Orbital  ///< 2e-in-2D CI in a 2D HO orbital basis (not 1e-in-4D)
+};
+
 enum class EigenMethod {
     Lanczos, ///< Hermitian Ritz extraction from a Krylov space of H (linear; SCF outer loop if λρ ≠ 0)
     Itp      ///< Imaginary-time relaxation ψ(τ) ∝ exp(−H τ) ψ, Gram–Schmidt for excited states
@@ -150,6 +155,9 @@ struct Parameters {
     double invert_dvmax = 0.5;      ///< Clip |Δv| per outer step
     bool invert_check = false;      ///< Non-zero exit if the L1 error does not fall
     bool invert_ks_only = false;    ///< Skip interacting inversion; print v_s, v_H, v_c
+    InvertBasis invert_basis = InvertBasis::Config; ///< dim=2: config grid vs 2D orbital CI
+    bool invert_basis_explicit = false;
+    int invert_norb = 10;           ///< 2D HO orbitals for InvertBasis::Orbital
     std::string invert_density_file; ///< Target density if invert_target = File
 };
 
@@ -192,6 +200,7 @@ const char *eigen_method_name(EigenMethod m);
 const char *spin_kind_name(SpinKind s);
 const char *invert_target_name(InvertTarget t);
 const char *invert_guess_name(InvertGuess g);
+const char *invert_basis_name(InvertBasis b);
 void print_parameters(const Parameters &p);
 
 } // namespace tdse

@@ -1,10 +1,11 @@
 ! Two electrons in 2D: interacting inversion on a 4D configuration-space grid.
-! ψ(x1,y1,x2,y2) is one particle in 4D; v_ext(x,y) and n(x,y) stay 2D.
-! 二维双电子：组态空间是 4 维，反演的仍是二维 v_ext。
+! ψ(x1,y1,x2,y2) is exact 2e in 2D (stored as 1e in 4D); v_ext(x,y) stays 2D.
+! For a truncated 2D orbital CI instead, see invert_2e2d_orbital.in.
+! 二维双电子：组态空间是 4 维，反演的仍是二维 v_ext。轨道 CI 见 invert_2e2d_orbital.in。
 ! N=13 → 13^4 = 28561 points; raise n_grid to 17–21 for a smoother v.
 &CONTROL
   calculation = 'invert'
-  title       = '2e in 2D as 1e in 4D inversion'
+  title       = '2e in 2D as 4D configuration-space inversion'
   prefix      = 'invert_2e2d'
 /
 

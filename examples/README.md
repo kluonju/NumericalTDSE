@@ -44,7 +44,8 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `ho_2e_triplet.in` | 1D HO 2e triplet GS | 一维双电子三重态 | \(E=2\omega=2\) |
 | `invert_smoke.in` | 2e-1D inversion ctest | 一维双电子反演短跑 | L1 of \(n\) |
 | `invert_2e1d.in` | TGK08 1D helium inversion | 一维氦密度反演 | recover \(v_\mathrm{ext}\) |
-| `invert_2e2d.in` | 2e in 2D as 1e in 4D | 二维双电子（4 维组态） | recover \(v_\mathrm{ext}(x,y)\) |
+| `invert_2e2d.in` | 2e in 2D, \(N^4\) config grid | 二维双电子（4 维组态） | recover \(v_\mathrm{ext}(x,y)\) |
+| `invert_2e2d_orbital.in` | 2e in 2D, HO orbital CI | 二维双电子（轨道 CI） | recover \(v_\mathrm{ext}(x,y)\) |
 | `smoke.in` | ctest namelist | 短跑 | \(E\approx 0.625\) |
 | `ground_smoke.in` | Lanczos ctest | 基态短跑 | \(E=0.5\) |
 | `orbitals_smoke.in` | MPI ctest | MPI 短跑 | — |

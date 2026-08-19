@@ -344,6 +344,18 @@ void set_invert_target(Parameters &p, const std::string &raw, const std::string 
     }
 }
 
+void set_invert_basis(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    p.invert_basis_explicit = true;
+    if (s == "config" || s == "configuration" || s == "grid" || s == "exact" || s == "4d") {
+        p.invert_basis = InvertBasis::Config;
+    } else if (s == "orbital" || s == "orbitals" || s == "ci" || s == "2d") {
+        p.invert_basis = InvertBasis::Orbital;
+    } else {
+        throw std::invalid_argument(origin + ": invert basis must be 'config' (N^{2d} grid) or 'orbital' (2e-in-2D CI)");
+    }
+}
+
 void set_invert_guess(Parameters &p, const std::string &raw, const std::string &origin) {
     const std::string s = to_lower_copy(raw);
     if (s == "scaled" || s == "scale") {
@@ -368,6 +380,14 @@ bool apply_invert_keyword(Parameters &p, const std::string &key, const std::stri
     }
     if (key == "guess" || key == "invert_guess" || key == "v0") {
         set_invert_guess(p, value, origin);
+        return true;
+    }
+    if (key == "invert_basis" || key == "ci_basis") {
+        set_invert_basis(p, value, origin);
+        return true;
+    }
+    if (key == "n_orb" || key == "norb" || key == "invert_norb" || key == "n_orbitals") {
+        p.invert_norb = parse_int(value, origin);
         return true;
     }
     if (key == "n_grid" || key == "ngrid" || key == "npts") {
@@ -512,6 +532,10 @@ void apply_namelist_assignment(Parameters &p,
     }
 
     if (section == "INVERT") {
+        if (key == "basis") {
+            set_invert_basis(p, value, origin);
+            return;
+        }
         if (!apply_invert_keyword(p, key, value, origin)) {
             unknown();
         }
@@ -734,10 +758,28 @@ void finalize_parameters(Parameters &p) {
             throw std::invalid_argument("invert requires SYSTEM electrons = 2");
         }
         if (p.spatial_dim != 1 && p.spatial_dim != 2) {
-            throw std::invalid_argument("invert supports dim = 1 (TGK08 1D helium) or dim = 2 (4D config space)");
+            throw std::invalid_argument("invert supports dim = 1 (TGK08 1D helium) or dim = 2 (config grid or orbital CI)");
+        }
+        if (!p.invert_basis_explicit && p.representation == Representation::Orbital) {
+            p.invert_basis = InvertBasis::Orbital;
+        }
+        if (p.invert_basis == InvertBasis::Orbital) {
+            if (p.spatial_dim != 2) {
+                throw std::invalid_argument("INVERT basis = 'orbital' is 2e-in-2D CI; for dim=1 use the N×N config grid");
+            }
+            if (p.invert_norb < 3) {
+                throw std::invalid_argument("INVERT n_orb must be >= 3");
+            }
+            if (p.invert_norb > 24) {
+                throw std::invalid_argument("INVERT n_orb must be <= 24 (CI size is n_orb²)");
+            }
         }
         if (p.n_grid == 0) {
-            p.n_grid = (p.spatial_dim == 1) ? 49 : 15;
+            if (p.invert_basis == InvertBasis::Orbital) {
+                p.n_grid = 21;
+            } else {
+                p.n_grid = (p.spatial_dim == 1) ? 49 : 15;
+            }
         }
         if (p.n_grid < 9) {
             throw std::invalid_argument("INVERT n_grid must be >= 9");
@@ -777,7 +819,7 @@ void finalize_parameters(Parameters &p) {
         if (p.n_electrons != 2) {
             throw std::invalid_argument("SYSTEM spin = singlet|triplet requires electrons = 2");
         }
-        if (p.representation != Representation::Exact) {
+        if (p.representation != Representation::Exact && !is_invert(p)) {
             throw std::invalid_argument("SYSTEM spin requires mode = 'exact' (spatial exchange of ψ(r1,r2))");
         }
         if (p.spin == SpinKind::Singlet && p.fermion) {
@@ -894,13 +936,15 @@ void write_input_template(std::ostream &os) {
 &INVERT
   target     = 'self'             ! 'self' (round-trip) | 'file'
   guess      = 'scaled'           ! 'scaled' | 'harmonic' | 'zero' | 'atom' | 'hx'
-  n_grid     = 0                  ! 0 → 49 (1D) or 15 (2D); forced odd
+  basis      = 'config'           ! 'config' (N^{2d} grid) | 'orbital' (2e-in-2D CI)
+  n_orb      = 10                 ! 2D HO orbitals if basis = 'orbital'
+  n_grid     = 0                  ! 0 → 49 (1D) / 15 (2D config) / 21 (2D orbital)
   gamma      = 0.25               ! TGK08 step: v += γ (w0+|r|^β) (n-n*)
   beta       = 1.0
   w0         = 1.0                ! 0 freezes v(0) as in the paper
   tol        = 1.0d-4             ! ∫|n-n*|
   maxiter    = 40
-  inner      = 40                 ! imag-time steps per outer iteration
+  inner      = 40                 ! imag-time steps per outer iteration (config basis)
   tau        = 0.08
   scale      = 0.55               ! scaled-trap guess
   check      = .false.

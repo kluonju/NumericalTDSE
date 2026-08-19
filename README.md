@@ -33,7 +33,8 @@ mindmap
       Density invert
         TGK08 Peirs v_ext of n
         2e in 1D paper
-        2e in 2D as 1e in 4D
+        2e in 2D config N4
+        2e in 2D orbital CI
       Orbital mean field
         Up to 4 orbitals
         Each FunctionTree of dim
@@ -195,7 +196,8 @@ srun --ntasks=4 --cpus-per-task=8 --cpu-bind=cores \
 ```bash
 ./build/bin/tdse examples/invert_smoke.in      # 2e in 1D, ctest
 ./build/bin/tdse examples/invert_2e1d.in       # 1D soft helium (TGK08)
-./build/bin/tdse examples/invert_2e2d.in       # 2e in 2D as 1e in 4D
+./build/bin/tdse examples/invert_2e2d.in              # 2e in 2D, N^4 config grid
+./build/bin/tdse examples/invert_2e2d_orbital.in       # 2e in 2D, HO orbital CI
 python3 examples/plot_inversion.py invert_2e1d_observables.csv
 ```
 

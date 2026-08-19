@@ -199,6 +199,13 @@ set_tests_properties(tdse_invert_2e2d_smoke PROPERTIES
     TIMEOUT 180
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+add_test(NAME tdse_invert_2e2d_orbital_smoke
+    COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/invert_2e2d_orbital_smoke.in
+)
+set_tests_properties(tdse_invert_2e2d_orbital_smoke PROPERTIES
+    TIMEOUT 180
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 add_test(NAME tdse_harmonic_2e2d_smoke
     COMMAND $<TARGET_FILE:tdse> ${CMAKE_SOURCE_DIR}/examples/harmonic_2e2d_smoke.in
 )

@@ -16,12 +16,13 @@
  *   v_s = (1/(2φ)) ∇²φ + const,    v_c = v_s − ½ v_H − v_ext.
  *
  * Representation. Two electrons in d spatial dimensions live in 2d-dimensional
- * configuration space. That is cheaper and more exact than a “2D-in-2D” CI:
- * W(|r1−r2|) is a local 4D potential, there are no two-electron integrals, and
- * the singlet is a transposition. MRCPP trees stop at D=3, so the inversion
- * uses a uniform Cartesian grid instead of FunctionTree<4>.
+ * configuration space. For dim=2 that is the default: ψ(x1,y1,x2,y2) on an N⁴
+ * grid (exact 2e in 2D, stored as 1e in 4D). Set INVERT basis='orbital' for a
+ * truncated 2e-in-2D CI in a 2D HO orbital basis on the same spatial grid;
+ * v_ext(x,y) and n(x,y) stay two-dimensional in both cases.
  */
 
+#include "tdse/invert_ci.hpp"
 #include "tdse/nbody_grid.hpp"
 #include "tdse/parameters.hpp"
 #include "tdse/parallel.hpp"
@@ -252,7 +253,10 @@ int invert_two_electrons(const Parameters &p) {
     g.setup(p);
 
     mrcpp::print::header(0, "Two-electron density inversion (TGK08)");
-    println(0, "  representation  : 1 particle in " << TwoElectronGrid<SpatialDim>::kConfigDim << "D configuration space");
+    println(0,
+            "  representation  : 2 electrons in " << SpatialDim << "D ("
+                                                  << TwoElectronGrid<SpatialDim>::kConfigDim
+                                                  << "D configuration-space grid)");
     println(0, "  spatial dim     : " << SpatialDim);
     mrcpp::print::value(0, "n_grid", static_cast<double>(g.n));
     mrcpp::print::value(0, "L", g.L);
@@ -421,17 +425,188 @@ int invert_two_electrons(const Parameters &p) {
     return 0;
 }
 
+/** 2e-in-2D inversion: singlet CI in a 2D HO orbital basis (not 1e in 4D). */
+inline int invert_two_electrons_ci(const Parameters &p) {
+    mrcpp::Timer timer;
+    TwoElectronGrid<2> g;
+    g.setup(p);
+
+    TwoElectronCI2D ci;
+    println(0, "  building 2D HO orbital CI (n_orb=" << p.invert_norb << ", n_grid=" << g.n << ")...");
+    ci.setup(g, p);
+
+    mrcpp::print::header(0, "Two-electron density inversion (TGK08), 2e-in-2D CI");
+    println(0, "  representation  : 2 electrons in 2D, singlet CI in " << ci.M << " HO orbitals");
+    println(0, "  spatial dim     : 2");
+    mrcpp::print::value(0, "n_grid", static_cast<double>(g.n));
+    mrcpp::print::value(0, "n_orb", static_cast<double>(ci.M));
+    mrcpp::print::value(0, "CI dimension", static_cast<double>(ci.M * ci.M));
+    mrcpp::print::value(0, "L", g.L);
+    mrcpp::print::value(0, "dx", g.dx);
+    println(0, "  target          : " << invert_target_name(p.invert_target));
+    println(0, "  guess           : " << invert_guess_name(p.invert_guess));
+    println(0, "  ee              : " << (g.ee ? "true" : "false"));
+    println(0, "  inner solver    : full CI diagonalization (INVERT inner/tau unused)");
+
+    if (parallel::size > 1) {
+        println(0, "  note: inversion is OpenMP-only; extra MPI ranks replicate the work");
+    }
+
+    std::vector<double> v_true(g.ns, std::numeric_limits<double>::quiet_NaN());
+    std::vector<double> n_target(g.ns, 0.0);
+
+    if (p.invert_target == InvertTarget::File) {
+        load_density_file(g, p.invert_density_file, n_target);
+        g.fill_trap(v_true, p);
+    } else {
+        g.fill_trap(v_true, p);
+        g.v_ext = v_true;
+        const double E0 = ci.ground(g.v_ext);
+        n_target = g.dens;
+        println(0,
+                "  target GS       : E = " << std::setprecision(10) << E0 << "  N = " << g.density_integral()
+                                           << "  ||(H-E)C|| = " << ci.residual);
+    }
+
+    apply_guess(g, p, v_true, n_target);
+    double E = ci.ground(g.v_ext);
+    const double l1_init = g.l1_density(n_target);
+    println(0, "  initial L1      : ∫|n−n*| = " << std::setprecision(8) << l1_init);
+
+    std::vector<double> vs;
+    std::vector<double> vh;
+    std::vector<double> vc(g.ns, 0.0);
+    g.ks_potential(vs, p.invert_ncut);
+    g.hartree(vh);
+    const int i0 = g.density_peak();
+    shift_to_match(vs, v_true, i0);
+
+    if (p.invert_ks_only) {
+        for (std::size_t i = 0; i < g.ns; ++i) {
+            vc[i] = vs[i] - 0.5 * vh[i] - v_true[i];
+        }
+        write_density_table(p, g, n_target, v_true, g.v_ext, vs, vh, vc);
+        mrcpp::print::footer(0, timer, 2);
+        return 0;
+    }
+
+    std::ofstream hist;
+    if (parallel::io_rank()) {
+        hist.open(p.output);
+        if (!hist) {
+            throw std::runtime_error("cannot write " + p.output);
+        }
+        hist << "iter,l1,energy,gamma,v_rms,n_int,residual\n";
+        hist << std::scientific << std::setprecision(12);
+    }
+
+    double gamma = p.invert_gamma;
+    double l1 = l1_init;
+    std::vector<double> v_save = g.v_ext;
+
+    auto v_rms_now = [&]() {
+        std::vector<double> vcmp = g.v_ext;
+        shift_to_match(vcmp, v_true, i0);
+        return weighted_v_rms(vcmp, v_true, n_target, p.invert_ncut, g.dV_s);
+    };
+
+    if (parallel::io_rank()) {
+        hist << 0 << ',' << l1 << ',' << E << ',' << gamma << ',' << v_rms_now() << ',' << g.density_integral() << ','
+             << ci.residual << '\n';
+    }
+
+    mrcpp::print::header(0, "Peirs / TGK08 iteration");
+    println(0, "  maxiter=" << p.invert_maxiter << "  print_every=" << p.print_every);
+    for (int it = 1; it <= p.invert_maxiter; ++it) {
+        v_save = g.v_ext;
+        for (std::size_t u = 0; u < g.ns; ++u) {
+            const double r = spatial_radius(g, u);
+            const double w = gamma * (p.invert_w0 + std::pow(r, p.invert_beta));
+            double dv = w * (g.dens[u] - n_target[u]);
+            if (dv > p.invert_dvmax) {
+                dv = p.invert_dvmax;
+            } else if (dv < -p.invert_dvmax) {
+                dv = -p.invert_dvmax;
+            }
+            g.v_ext[u] += dv;
+        }
+        E = ci.ground(g.v_ext);
+        const double l1_new = g.l1_density(n_target);
+        if (l1_new > l1 * 1.05 && gamma > 1.0e-5) {
+            g.v_ext = v_save;
+            E = ci.ground(g.v_ext);
+            gamma *= 0.5;
+            println(0, "  iter " << it << "  backtrack, gamma → " << gamma);
+            continue;
+        }
+        if (l1_new < l1) {
+            gamma = std::min(p.invert_gamma, gamma * 1.05);
+        }
+        l1 = l1_new;
+        const double vrms = v_rms_now();
+        const double nint = g.density_integral();
+        println(0,
+                "  iter " << it << "  L1=" << std::setprecision(6) << l1 << "  E=" << std::setprecision(8) << E
+                          << "  γ=" << gamma << "  v_rms=" << vrms << "  N=" << nint
+                          << "  ||(H-E)C||=" << ci.residual);
+        if (parallel::io_rank()) {
+            hist << it << ',' << l1 << ',' << E << ',' << gamma << ',' << vrms << ',' << nint << ',' << ci.residual
+                 << '\n';
+            hist.flush();
+        }
+        if (l1 < p.invert_tol) {
+            println(0, "  converged: ∫|n−n*| < " << p.invert_tol);
+            break;
+        }
+    }
+
+    std::vector<double> v_inv = g.v_ext;
+    g.ks_potential(vs, p.invert_ncut);
+    g.hartree(vh);
+    shift_to_match(v_inv, v_true, i0);
+    shift_to_match(vs, v_true, i0);
+    for (std::size_t i = 0; i < g.ns; ++i) {
+        vc[i] = vs[i] - 0.5 * vh[i] - v_inv[i];
+    }
+    const double vrms = weighted_v_rms(v_inv, v_true, n_target, p.invert_ncut, g.dV_s);
+    println(0, "  final L1        : " << std::setprecision(8) << l1);
+    println(0, "  final v_rms     : " << vrms << "  (density-weighted, n > ncut, constants aligned)");
+    println(0, "  particle number : " << g.density_integral() << "  (should be 2)");
+
+    write_density_table(p, g, n_target, v_true, v_inv, vs, vh, vc);
+    if (hist.is_open()) {
+        hist.close();
+        println(0, "  wrote inversion history '" << p.output << "'");
+    }
+    mrcpp::print::footer(0, timer, 2);
+
+    if (p.invert_check) {
+        const bool improved = (l1 < l1_init * 0.8) || (l1 < p.invert_tol);
+        if (!improved) {
+            std::cerr << "NumericalTDSE error: inversion L1 did not improve (" << l1_init << " → " << l1 << ")\n";
+            return 1;
+        }
+    }
+    return 0;
+}
+
 inline int run_invert(const Parameters &p) {
     if (p.n_electrons != 2) {
         throw std::invalid_argument("calculation = 'invert' requires SYSTEM electrons = 2");
     }
     if (p.spatial_dim == 1) {
+        if (p.invert_basis == InvertBasis::Orbital) {
+            throw std::invalid_argument("INVERT basis = 'orbital' is 2e-in-2D CI; for dim=1 use the N×N config grid");
+        }
         return invert_two_electrons<1>(p);
     }
     if (p.spatial_dim == 2) {
+        if (p.invert_basis == InvertBasis::Orbital) {
+            return invert_two_electrons_ci(p);
+        }
         return invert_two_electrons<2>(p);
     }
-    throw std::invalid_argument("invert supports spatial dim 1 (paper) or 2 (1e in 4D config space)");
+    throw std::invalid_argument("invert supports spatial dim 1 (TGK08) or 2 (config grid or orbital CI)");
 }
 
 } // namespace tdse

@@ -1,0 +1,41 @@
+! Two electrons in 2D: interacting inversion in a 2D HO orbital CI
+! (not the N^4 configuration-space / 1e-in-4D grid).
+! v_ext(x,y) and n(x,y) stay two-dimensional.
+! 二维双电子：在二维谐振子轨道基里做 CI 反演（不是 4 维组态格子）。
+&CONTROL
+  calculation = 'invert'
+  title       = '2e in 2D orbital-CI inversion'
+  prefix      = 'invert_2e2d_orbital'
+/
+
+&MRA
+  L = 5.0
+/
+
+&SYSTEM
+  dim       = 2
+  electrons = 2
+  trap      = 'harmonic'
+  omega     = 1.0
+  soft_a    = 1.0
+  ee        = .true.
+  spin      = 'singlet'
+/
+
+&INITIAL
+  alpha = 1.0
+/
+
+&INVERT
+  target  = 'self'
+  guess   = 'scaled'
+  scale   = 0.55
+  basis   = 'orbital'
+  n_orb   = 10
+  n_grid  = 15
+  gamma   = 0.30
+  beta    = 1.0
+  w0      = 1.0
+  tol     = 2.0d-3
+  maxiter = 12
+/

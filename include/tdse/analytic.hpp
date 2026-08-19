@@ -37,68 +37,6 @@ inline bool is_exact_nbody(const Parameters &p) {
 
 inline std::complex<double> ho_eigen_1d(double x, int n, double omega);
 
-/**
- * Exact two-electron spatial wave function with definite exchange parity.
- * Singlet: ψ(r1,r2)=+ψ(r2,r1). Triplet: ψ(r1,r2)=−ψ(r2,r1).
- * Electron i occupies r[i*dim .. i*dim+dim-1].
- */
-template <int D>
-double two_electron_spatial(const mrcpp::Coord<D> &r, const Parameters &p) {
-    if constexpr (D != 2 && D != 4) {
-        return 0.0;
-    } else {
-        const SpinKind spin = two_electron_spin(p);
-        if (spin == SpinKind::Unspecified || p.n_electrons != 2) {
-            return 0.0;
-        }
-        const int dim = p.spatial_dim;
-        if (dim * 2 != D) {
-            return 0.0;
-        }
-
-        auto gauss_orb = [&](int e, double cx) -> double {
-            double r2 = 0.0;
-            for (int a = 0; a < dim; ++a) {
-                const double x = r[e * dim + a] - ((a == 0) ? cx : 0.0);
-                r2 += x * x;
-            }
-            const double nrm = std::pow(p.alpha / PI, 0.25 * static_cast<double>(dim));
-            return nrm * std::exp(-0.5 * p.alpha * r2);
-        };
-        auto ho_orb = [&](int e, int nx) -> double {
-            double v = ho_eigen_1d(r[e * dim], nx, p.omega).real();
-            for (int a = 1; a < dim; ++a) {
-                v *= ho_eigen_1d(r[e * dim + a], 0, p.omega).real();
-            }
-            return v;
-        };
-
-        const bool use_ho = (p.trap == TrapKind::Harmonic && p.omega > 0.0 && std::abs(p.x0) < 1.0e-14);
-        if (spin == SpinKind::Singlet) {
-            if (use_ho) {
-                return ho_orb(0, 0) * ho_orb(1, 0);
-            }
-            const double a = gauss_orb(0, p.x0) * gauss_orb(1, -p.x0);
-            const double b = gauss_orb(0, -p.x0) * gauss_orb(1, p.x0);
-            if (std::abs(p.x0) < 1.0e-14) {
-                return a;
-            }
-            return (a + b) / std::sqrt(2.0);
-        }
-
-        if (use_ho) {
-            return (ho_orb(0, 0) * ho_orb(1, 1) - ho_orb(0, 1) * ho_orb(1, 0)) / std::sqrt(2.0);
-        }
-        if (std::abs(p.x0) > 1.0e-14) {
-            const double a = gauss_orb(0, p.x0) * gauss_orb(1, -p.x0);
-            const double b = gauss_orb(0, -p.x0) * gauss_orb(1, p.x0);
-            return (a - b) / std::sqrt(2.0);
-        }
-        const double prod = gauss_orb(0, 0.0) * gauss_orb(1, 0.0);
-        return (r[0] - r[dim]) * prod;
-    }
-}
-
 /** Harmonic-oscillator / Gaussian envelope (real part of the initial orbital). */
 template <int D>
 class InitialWavefunctionReal : public mrcpp::RepresentableFunction<D> {
@@ -121,16 +59,17 @@ protected:
         const int n = p_.n_electrons;
         const bool nbody_1d = is_exact_nbody(p_) && p_.spatial_dim == 1;
 
-        if (n == 2 && is_exact_nbody(p_) && two_electron_spin(p_) != SpinKind::Unspecified) {
-            return two_electron_spatial<D>(r, p_);
-        }
-
         if (nbody_1d) {
-            // Product of 1D Gaussians; N = 2 fermion without spin= is handled above.
+            // Product of 1D Gaussians, optionally antisymmetrised for N = 2.
             const double nrm1 = std::pow(p_.alpha / PI, 0.25);
             auto orb = [&](double x, double center) {
                 return nrm1 * std::exp(-0.5 * p_.alpha * (x - center) * (x - center));
             };
+            if (n == 2 && p_.fermion) {
+                const double a = orb(r[0], p_.x0) * orb(r[1], -p_.x0);
+                const double b = orb(r[0], -p_.x0) * orb(r[1], p_.x0);
+                return (a - b) / std::sqrt(2.0);
+            }
             if constexpr (D >= 3) {
                 if (n == 3 && p_.fermion) {
                     auto phi = [&](int k, double x) -> double {
@@ -247,6 +186,13 @@ private:
                 return 0.5 * p_.omega * p_.omega * r2;
             }
             case TrapKind::SoftAtom: {
+                auto nucleus = [&](double r2) {
+                    double den = std::sqrt(r2 + p_.soft_a * p_.soft_a);
+                    if (den < 1.0e-15) {
+                        den = 1.0e-15;
+                    }
+                    return -p_.Z / den;
+                };
                 if (is_exact_nbody(p_)) {
                     const int dim = p_.spatial_dim;
                     double v = 0.0;
@@ -256,7 +202,7 @@ private:
                             const double x = r[i * dim + d];
                             r2 += x * x;
                         }
-                        v += -p_.Z / std::sqrt(r2 + p_.soft_a * p_.soft_a);
+                        v += nucleus(r2);
                     }
                     return v;
                 }
@@ -264,7 +210,7 @@ private:
                 for (int d = 0; d < D; ++d) {
                     r2 += r[d] * r[d];
                 }
-                return -p_.Z / std::sqrt(r2 + p_.soft_a * p_.soft_a);
+                return nucleus(r2);
             }
         }
         return 0.0;
@@ -366,14 +312,6 @@ inline double analytic_energy(const Parameters &p) {
         return std::numeric_limits<double>::quiet_NaN();
     }
     if (is_exact_nbody(p) && p.trap == TrapKind::Harmonic && p.omega > 0.0 && !p.ee) {
-        const SpinKind spin = two_electron_spin(p);
-        if (p.n_electrons == 2 && spin != SpinKind::Unspecified) {
-            if (std::abs(p.k0) > 1.0e-14 || std::abs(p.x0) > 1.0e-14) {
-                return std::numeric_limits<double>::quiet_NaN();
-            }
-            const double e_singlet = p.omega * static_cast<double>(p.spatial_dim);
-            return (spin == SpinKind::Triplet) ? (e_singlet + p.omega) : e_singlet;
-        }
         if (p.fermion && p.spatial_dim == 1) {
             double E = 0.0;
             for (int k = 0; k < p.n_electrons; ++k) {
@@ -478,19 +416,54 @@ inline std::complex<double> ho_eigen_1d(double x, int n, double omega) {
     return nrm * std::exp(-0.5 * omega * x * x) * hermite_phys(n, xi);
 }
 
+/** 2D hydrogen (V = −Z/r) level n = 1,2,… : E = −Z² / [2(n−1/2)²]. Degeneracy 2n−1. */
+inline double hydrogen_2d_energy(double Z, int n_level) {
+    const double half = static_cast<double>(n_level) - 0.5;
+    return -0.5 * Z * Z / (half * half);
+}
+
+inline int hydrogen_2d_level(int k) {
+    int n = 1;
+    int count = 0;
+    for (;;) {
+        const int deg = 2 * n - 1;
+        if (count + deg > k) {
+            return n;
+        }
+        count += deg;
+        ++n;
+        if (n > 64) {
+            return n;
+        }
+    }
+}
+
+inline bool is_bare_coulomb_2d(const Parameters &p) {
+    return p.trap == TrapKind::SoftAtom && p.spatial_dim == 2 && p.Z > 0.0 && std::abs(p.soft_a) < 1.0e-12;
+}
+
 /** Isotropic HO energy of the n-th lowest state (0-based), including degeneracy. */
 inline double analytic_eigen_energy(const Parameters &p, int n) {
-    if (is_exact_nbody(p)) {
-        if (p.lambda_contact != 0.0 || p.ee || p.trap != TrapKind::Harmonic || p.omega <= 0.0 || n < 0) {
-            return std::numeric_limits<double>::quiet_NaN();
+    if (n < 0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (is_bare_coulomb_2d(p) && p.lambda_contact == 0.0) {
+        if (p.n_electrons == 1) {
+            return hydrogen_2d_energy(p.Z, hydrogen_2d_level(n));
         }
-        const SpinKind spin = two_electron_spin(p);
-        if (p.n_electrons == 2 && spin != SpinKind::Unspecified) {
-            if (n != 0) {
-                return std::numeric_limits<double>::quiet_NaN();
+        if (is_exact_nbody(p) && p.n_electrons == 2 && !p.ee && !p.fermion) {
+            // Singlet IP: 1s² then 1s2p. E_1 = −2 Z², E_2 = −2 Z² / 9.
+            if (n == 0) {
+                return 2.0 * hydrogen_2d_energy(p.Z, 1);
             }
-            const double e_singlet = p.omega * static_cast<double>(p.spatial_dim);
-            return (spin == SpinKind::Triplet) ? (e_singlet + p.omega) : e_singlet;
+            if (n == 1) {
+                return hydrogen_2d_energy(p.Z, 1) + hydrogen_2d_energy(p.Z, 2);
+            }
+        }
+    }
+    if (is_exact_nbody(p)) {
+        if (p.lambda_contact != 0.0 || p.ee || p.trap != TrapKind::Harmonic || p.omega <= 0.0) {
+            return std::numeric_limits<double>::quiet_NaN();
         }
         if (p.fermion && p.spatial_dim == 1) {
             double E = 0.0;

@@ -7,7 +7,7 @@
  * on a (2*SpatialDim)-dimensional configuration-space grid:
  *
  *   SpatialDim = 1  →  ψ(x1, x2)           on N×N          (TGK08 helium model)
- *   SpatialDim = 2  →  ψ(x1, y1, x2, y2)   on N⁴           (1 particle in 4D)
+ *   SpatialDim = 2  →  ψ(x1, y1, x2, y2)   on N⁴           (exact 2e in 2D)
  *
  * That 4D picture is the interacting Hamiltonian, not an extra approximation:
  * T = −½∇²_{r1} − ½∇²_{r2} is the 4D Laplacian, v(r1)+v(r2)+W(|r1−r2|) is a
@@ -38,6 +38,9 @@ namespace tdse {
 inline int invert_default_grid(const Parameters &p) {
     if (p.n_grid > 0) {
         return p.n_grid;
+    }
+    if (p.invert_basis == InvertBasis::Orbital) {
+        return 21;
     }
     return (p.spatial_dim == 1) ? 49 : 15;
 }

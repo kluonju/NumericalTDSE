@@ -126,6 +126,16 @@ const char *invert_target_name(InvertTarget t) {
     return "?";
 }
 
+const char *invert_basis_name(InvertBasis b) {
+    switch (b) {
+        case InvertBasis::Config:
+            return "config";
+        case InvertBasis::Orbital:
+            return "orbital";
+    }
+    return "?";
+}
+
 const char *invert_guess_name(InvertGuess g) {
     switch (g) {
         case InvertGuess::Scaled:
@@ -208,7 +218,11 @@ void print_parameters(const Parameters &p) {
     if (is_invert(p)) {
         println(0, "  invert_target   : " << invert_target_name(p.invert_target));
         println(0, "  invert_guess    : " << invert_guess_name(p.invert_guess));
+        println(0, "  invert_basis    : " << invert_basis_name(p.invert_basis));
         mrcpp::print::value(0, "n_grid", static_cast<double>(p.n_grid));
+        if (p.invert_basis == InvertBasis::Orbital) {
+            mrcpp::print::value(0, "n_orb", static_cast<double>(p.invert_norb));
+        }
         mrcpp::print::value(0, "invert_gamma", p.invert_gamma);
         mrcpp::print::value(0, "invert_maxiter", static_cast<double>(p.invert_maxiter));
     }
