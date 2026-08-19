@@ -162,7 +162,7 @@ Potential pieces (see `include/tdse/analytic.hpp`):
 - **Exact N-body 1D** extra electron–electron \(1/\sqrt{(x_i-x_j)^2+a^2}\) (off with `ee = .false.`)
 - **Orbital mode** optional contact Hartree \(\lambda\rho(\mathbf r)\)
 
-Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced by `x0` along \(x\), with optional boost \(\mathrm{e}^{i k_0 x}\). For exact 1D `fermion = .true.`: two electrons → antisymmetrised pair of Gaussians; three electrons in a harmonic trap → Slater determinant of HO orbitals \(n=0,1,2\).
+Initial wave function: a Gaussian \(\psi \propto \exp(-\alpha r^2/2)\) displaced by `x0` along \(x\), with optional boost \(\mathrm{e}^{i k_0 x}\). Exact two-electron: `spin = 'singlet'` (spatial even) or `'triplet'` (spatial odd); `fermion = .true.` for two electrons is the triplet. Three 1D electrons with `fermion = .true.`: Slater of HO orbitals \(n=0,1,2\). Non-interacting 1D HO: singlet \(E=\omega\), triplet \(E=2\omega\).
 
 ---
 
@@ -221,7 +221,8 @@ Aliases: `CTRL`; `GRID`/`NUMERICS` → `MRA`; `PROPAGATOR` → `TIME`; `WAVEFUNC
 | `soft_a` | 1 | soft-Coulomb length |
 | `Z` | 1 | nuclear charge |
 | `lambda` | 0 | orbital contact \(\lambda\) |
-| `fermion` | `.false.` | exact 1D: Slater initial data for 2e or 3e |
+| `fermion` | `.false.` | exact 1D: Slater initial data for 2e or 3e; 2e implies triplet |
+| `spin` | unspecified | exact 2e: `'singlet'` (spatial even) or `'triplet'` (spatial odd) |
 | `ee` | `.true.` | exact 1D N-body: include soft-Coulomb \(V_{ee}\) |
 
 ### `&INITIAL`

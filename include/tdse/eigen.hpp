@@ -96,39 +96,44 @@ double overlap_ho_eigen(double prec, CplxFun<D> &psi, const Parameters &p, int n
     if (p.lambda_contact != 0.0) {
         return 0.0;
     }
-    // Exact N-body GS is the isotropic D-dimensional Gaussian (product of 1D HO
-    // ground orbitals). Excited N-body states and interacting / fermionic
-    // cases have no elementary overlap target here.
-    if (p.representation == Representation::Exact && p.n_electrons != 1) {
-        if (n != 0 || p.ee || p.fermion) {
-            return 0.0;
+    // Exact N-body GS overlap: singlet = product of HO grounds; triplet = Slater n=0,1.
+    if (p.representation == Representation::Exact && p.n_electrons == 2 && !p.ee && n == 0) {
+        const SpinKind spin = two_electron_spin(p);
+        if (spin != SpinKind::Unspecified) {
+            Parameters ana_p = p;
+            ana_p.x0 = 0.0;
+            CplxFun<D> ana(psi.mra);
+            auto re_f = [&](const mrcpp::Coord<D> &r) -> double { return two_electron_spatial<D>(r, ana_p); };
+            auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+                (void)r;
+                return 0.0;
+            };
+            mrcpp::project<D, double>(prec, ana.re, re_f);
+            mrcpp::project<D, double>(prec, ana.im, im_f);
+            const double nrm = norm(psi) * norm(ana);
+            if (nrm <= 0.0) {
+                return 0.0;
+            }
+            return std::abs(inner(psi, ana)) / nrm;
         }
+    }
+    if (p.representation == Representation::Exact && (p.ee || p.fermion)) {
+        return 0.0;
     }
     CplxFun<D> ana(psi.mra);
-    if constexpr (D == 1) {
-        auto re_f = [&](const mrcpp::Coord<1> &r) -> double { return ho_eigen_1d(r[0], n, p.omega).real(); };
-        auto im_f = [&](const mrcpp::Coord<1> &r) -> double { return 0.0; };
-        mrcpp::project<1, double>(prec, ana.re, re_f);
-        mrcpp::project<1, double>(prec, ana.im, im_f);
-    } else {
-        if (n != 0) {
-            return 0.0;
+    auto re_f = [&](const mrcpp::Coord<D> &r) -> double {
+        double v = ho_eigen_1d(r[0], n, p.omega).real();
+        for (int d = 1; d < D; ++d) {
+            v *= ho_eigen_1d(r[d], 0, p.omega).real();
         }
-        auto re_f = [&](const mrcpp::Coord<D> &r) -> double {
-            double r2 = 0.0;
-            for (int d = 0; d < D; ++d) {
-                r2 += r[d] * r[d];
-            }
-            const double nrm = std::pow(p.omega / PI, 0.25 * static_cast<double>(D));
-            return nrm * std::exp(-0.5 * p.omega * r2);
-        };
-        auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
-            (void)r;
-            return 0.0;
-        };
-        mrcpp::project<D, double>(prec, ana.re, re_f);
-        mrcpp::project<D, double>(prec, ana.im, im_f);
-    }
+        return v;
+    };
+    auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+        (void)r;
+        return 0.0;
+    };
+    mrcpp::project<D, double>(prec, ana.re, re_f);
+    mrcpp::project<D, double>(prec, ana.im, im_f);
     const double nrm = norm(psi) * norm(ana);
     if (nrm <= 0.0) {
         return 0.0;
@@ -235,6 +240,15 @@ std::vector<EigenPair<D>> lanczos_lowest(double prec,
 
         const double bj = norm(*w);
         beta[static_cast<std::size_t>(j)] = bj;
+        if ((j + 1) % std::max(1, p.print_every) == 0 || j == m - 1 || bj < breakdown) {
+            std::stringstream line;
+            line << "  Lanczos j=" << (j + 1) << "/" << m << "  α=" << std::scientific << std::setprecision(6)
+                 << alpha[static_cast<std::size_t>(j)] << "  β=" << bj;
+            if (bj < breakdown) {
+                line << "  (breakdown)";
+            }
+            println(0, line.str());
+        }
         if (bj < breakdown || j == m - 1) {
             m_eff = j + 1;
             break;
@@ -323,15 +337,42 @@ std::vector<EigenPair<D>> lanczos_lowest(double prec,
 
 template <int D>
 void project_eigen_guess(double prec, CplxFun<D> &psi, const Parameters &p, int k) {
+    if (p.n_electrons == 2 && two_electron_spin(p) != SpinKind::Unspecified) {
+        Parameters pk = p;
+        if (k > 0 && std::abs(pk.x0) < 1.0e-14) {
+            pk.x0 = 0.55 * static_cast<double>(k);
+        }
+        auto re_f = [&](const mrcpp::Coord<D> &r) -> double { return two_electron_spatial<D>(r, pk); };
+        auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+            (void)r;
+            return 0.0;
+        };
+        mrcpp::project<D, double>(prec, psi.re, re_f);
+        mrcpp::project<D, double>(prec, psi.im, im_f);
+        return;
+    }
+    if (p.trap == TrapKind::Harmonic && p.omega > 0.0 && k >= 0) {
+        auto re_f = [&](const mrcpp::Coord<D> &r) -> double {
+            double v = ho_eigen_1d(r[0], k, p.omega).real();
+            for (int d = 1; d < D; ++d) {
+                v *= ho_eigen_1d(r[d], 0, p.omega).real();
+            }
+            return v;
+        };
+        auto im_f = [&](const mrcpp::Coord<D> &r) -> double {
+            (void)r;
+            return 0.0;
+        };
+        mrcpp::project<D, double>(prec, psi.re, re_f);
+        mrcpp::project<D, double>(prec, psi.im, im_f);
+        return;
+    }
     if (k <= 0) {
         project_psi(prec, psi, p, eigen_trial_center(p));
         return;
     }
     if constexpr (D == 1) {
         auto re_f = [&](const mrcpp::Coord<1> &r) -> double {
-            if (p.trap == TrapKind::Harmonic && p.omega > 0.0) {
-                return ho_eigen_1d(r[0], k, p.omega).real();
-            }
             const double nrm = std::pow(p.alpha / PI, 0.25);
             double pk = 1.0;
             for (int i = 0; i < k; ++i) {
@@ -358,6 +399,7 @@ void heat_polish(double prec,
                  mrcpp::HeatOperator<D> &heat,
                  double dt,
                  int nsteps,
+                 int print_every,
                  const std::vector<CplxFun<D> *> &deflate) {
     for (int s = 0; s < nsteps; ++s) {
         orthogonalize(prec, psi, deflate);
@@ -369,6 +411,14 @@ void heat_polish(double prec,
         normalize(psi);
         orthogonalize(prec, psi, deflate);
         normalize(psi);
+        if ((s + 1) % std::max(1, print_every) == 0 || s + 1 == nsteps) {
+            const double E = energy_expectation(prec, psi, ops, V);
+            const double res = hamiltonian_residual(prec, psi, ops, V, E);
+            std::stringstream ss;
+            ss << "  heat polish step=" << (s + 1) << "/" << nsteps << "  E=" << std::fixed << std::setprecision(10)
+               << E << "  ||(H-E)ψ||=" << std::scientific << res;
+            println(0, ss.str());
+        }
     }
 }
 
@@ -383,6 +433,7 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
     std::vector<CplxFun<D> *> defs;
     const double tau = std::min(0.10, std::max(p.dt, 0.02));
     const int polish = std::min(8, std::max(2, p.eigen_maxiter));
+    const int m = std::max(p.krylov_dim, n_states + 2);
     // 4D heat-kernel convolutions are too expensive for a smoke/ground run;
     // Lanczos without polish is still well-defined.
     std::unique_ptr<mrcpp::HeatOperator<D>> heat;
@@ -390,30 +441,20 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
         heat = std::make_unique<mrcpp::HeatOperator<D>>(ops.mra, 0.5 * tau, prec);
     }
     for (int k = 0; k < n_states; ++k) {
+        println(0, "  Lanczos eigenstate n=" << k << "  (Krylov dim " << m << ")");
         CplxFun<D> trial(ops.mra);
         project_eigen_guess(prec, trial, p, k);
         orthogonalize(prec, trial, defs);
         normalize(trial);
-        if (k == 0) {
-            auto one = lanczos_lowest(prec, trial, H, ops, V, p, 1, defs);
-            if (one.empty()) {
-                throw std::runtime_error("Lanczos returned no state");
-            }
-            if constexpr (D <= 3) {
-                heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, defs);
-            }
-            fill_pair_observables(prec, one[0], ops, V, p, k);
-            pairs.push_back(std::move(one[0]));
-        } else {
-            if constexpr (D <= 3) {
-                heat_polish(prec, trial, ops, V, *heat, tau, polish, defs);
-            }
-            EigenPair<D> ep;
-            ep.psi = std::make_unique<CplxFun<D>>(ops.mra);
-            copy_into(*ep.psi, trial);
-            fill_pair_observables(prec, ep, ops, V, p, k);
-            pairs.push_back(std::move(ep));
+        auto one = lanczos_lowest(prec, trial, H, ops, V, p, 1, defs);
+        if (one.empty()) {
+            throw std::runtime_error("Lanczos returned no state");
         }
+        if constexpr (D <= 3) {
+            heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, p.print_every, defs);
+        }
+        fill_pair_observables(prec, one[0], ops, V, p, k);
+        pairs.push_back(std::move(one[0]));
         defs.push_back(pairs.back().psi.get());
     }
     return pairs;
@@ -448,6 +489,10 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
     mrcpp::HeatOperator<D> heat(ops.mra, 0.5 * p.dt, prec);
     std::vector<std::unique_ptr<CplxFun<D>>> found;
     std::vector<EigenPair<D>> out;
+
+    println(0,
+            "  max_steps=" << nsteps << "  dt=" << p.dt << "  print_every=" << p.print_every
+                           << "  n_states=" << n_states);
 
     for (int k = 0; k < n_states; ++k) {
         auto psi = std::make_unique<CplxFun<D>>(ops.mra);
@@ -490,8 +535,11 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
                 break;
             }
 
-            if (history != nullptr && parallel::io_rank() && k == 0) {
+            if (s % std::max(1, p.print_every) == 0 || s + 1 == nsteps) {
                 Observables o;
+                o.label = "ITP n=" + std::to_string(k);
+                o.step = s + 1;
+                o.step_total = nsteps;
                 o.t = (s + 1) * p.dt;
                 o.nrm = norm(*psi);
                 o.dipole = total_dipole<D>(prec, *psi, p);
@@ -501,17 +549,14 @@ std::vector<EigenPair<D>> itp_lowest(double prec,
                 o.overlap_analytic = overlap_ho_eigen(prec, *psi, p, k);
                 o.n_nodes_re = psi->re.getNNodes();
                 o.n_nodes_im = psi->im.getNNodes();
-                write_row(*history, o);
+                if (history != nullptr && parallel::io_rank() && k == 0) {
+                    write_row(*history, o);
+                }
                 print_row(o);
-            } else if (s % std::max(1, p.print_every) == 0) {
-                std::stringstream ss;
-                ss << std::fixed << std::setprecision(8) << "  ITP n=" << k << "  step=" << (s + 1)
-                   << "  E=" << E << "  ||(H-E)ψ||=" << std::scientific << res;
-                println(0, ss.str());
             }
 
             // MW residual is not a reliable stop; |ΔE| and overlap are.
-            const double ov = (history != nullptr) ? overlap_ho_eigen(prec, *psi, p, k) : 0.0;
+            const double ov = overlap_ho_eigen(prec, *psi, p, k);
             if (s > 0 && std::abs(E - E_prev) < p.eigen_thr) {
                 break;
             }
@@ -794,7 +839,17 @@ int simulate_stationary_orbitals(const Parameters &p) {
         for (const auto &ep : pairs) {
             Etot += ep.energy;
         }
-        println(0, "  SCF/ITP iter " << (it + 1) << "  Σ ε = " << std::setprecision(10) << Etot);
+        const double dE = (it > 0) ? (Etot - E_prev) : 0.0;
+        println(0,
+                "  SCF/ITP iter " << (it + 1) << "/" << nscf << "  Σ ε = " << std::setprecision(10) << Etot
+                                  << "  |ΔΣε| = " << std::abs(dE));
+        for (int i = 0; i < n; ++i) {
+            const auto &ep = pairs[static_cast<std::size_t>(i)];
+            println(0,
+                    "    state " << i << "  E=" << std::setprecision(10) << ep.energy << "  res="
+                                 << std::scientific << std::setprecision(3) << ep.residual << "  nodes="
+                                 << ep.nodes_re << "/" << ep.nodes_im);
+        }
         if (it > 0 && std::abs(Etot - E_prev) < p.eigen_thr) {
             break;
         }

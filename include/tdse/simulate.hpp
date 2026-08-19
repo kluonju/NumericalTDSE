@@ -152,11 +152,17 @@ int simulate_exact(const Parameters &p) {
 
     const int nsteps = static_cast<int>(std::llround(p.T / p.dt));
     mrcpp::print::header(0, "Time evolution");
+    println(0,
+            "  steps=" << nsteps << "  dt=" << p.dt << "  T=" << p.T
+                       << "  print_every=" << p.print_every);
     for (int s = 0; s <= nsteps; ++s) {
         const double t = s * p.dt;
         if (s % p.print_every == 0 || s == nsteps) {
             auto V = project_V(MRA, p.prec, pot, t);
             Observables o = compute_observables(p.prec, t, psi, ops, *V, p);
+            o.label = "TDSE";
+            o.step = s;
+            o.step_total = nsteps;
             o.dipole_analytic = analytic_dipole(p, t);
             o.energy_analytic = analytic_energy(p);
             if (wants_analytic_overlap(p)) {
@@ -249,6 +255,9 @@ int simulate_orbitals(const Parameters &p) {
                 "  MPI: " << parallel::size << " ranks, orbitals round-robin "
                                               "(OpenMP inside each tree)");
     }
+    println(0,
+            "  steps=" << nsteps << "  dt=" << p.dt << "  T=" << p.T
+                       << "  print_every=" << p.print_every);
     for (int s = 0; s <= nsteps; ++s) {
         const double t = s * p.dt;
         auto Vext = project_V(MRA, p.prec, pot, t);
@@ -265,6 +274,9 @@ int simulate_orbitals(const Parameters &p) {
 
         if (s % p.print_every == 0 || s == nsteps) {
             Observables o;
+            o.label = "orbital TDSE";
+            o.step = s;
+            o.step_total = nsteps;
             o.t = t;
             o.n_nodes_re = 0;
             o.n_nodes_im = 0;

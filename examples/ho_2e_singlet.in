@@ -1,0 +1,40 @@
+! Exact 1D two-electron HO, spin singlet (spatial even).
+! Non-interacting GS: both electrons in n=0, E = ω = 1.
+! 精确一维双电子谐振子单重态（空间对称）。无相互作用基态 E = 1。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D HO 2e singlet ground state'
+  prefix      = 'ho_2e_singlet'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-3
+  order = 5
+  L     = 6.0
+/
+
+&TIME
+  kinetic    = 'bs'
+  krylov_dim = 8
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  spin      = 'singlet'
+  ee        = .false.
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/

@@ -162,7 +162,7 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 - **精确一维 N 体** 额外电子–电子 \(1/\sqrt{(x_i-x_j)^2+a^2}\)（`ee = .false.` 可关）
 - **轨道模式** 可选接触 Hartree \(\lambda\rho(\mathbf r)\)
 
-初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。精确一维 `fermion = .true.`：两电子 → 反对称双高斯；三电子谐振子 → HO 轨道 \(n=0,1,2\) 的 Slater 行列式。
+初态：高斯 \(\psi \propto \exp(-\alpha r^2/2)\)，沿 \(x\) 位移 `x0`，可选 boost \(\mathrm{e}^{i k_0 x}\)。精确双电子用 `spin = 'singlet'`（空间对称）或 `'triplet'`（空间反对称）；`fermion = .true.` 在两电子时等于三重态。三电子谐振子 `fermion = .true.`：HO 轨道 \(n=0,1,2\) 的 Slater 行列式。无相互作用 1D HO：单重态 \(E=\omega\)，三重态 \(E=2\omega\)。
 
 ---
 
@@ -221,7 +221,8 @@ H = \sum_{i=1}^{3}\Bigl(-\tfrac12\partial_{x_i}^2 + \tfrac12\omega^2 x_i^2\Bigr)
 | `soft_a` | 1 | 软库仑长度 |
 | `Z` | 1 | 核电荷 |
 | `lambda` | 0 | 轨道接触 \(\lambda\) |
-| `fermion` | `.false.` | 精确一维 2e/3e Slater 初态 |
+| `fermion` | `.false.` | 精确一维 2e/3e Slater 初态；2e 等价于三重态 |
+| `spin` | 未指定 | 精确双电子：`'singlet'`（空间偶）或 `'triplet'`（空间奇） |
 | `ee` | `.true.` | 精确一维 N 体是否含软库仑 \(V_{ee}\) |
 
 ### `&INITIAL`

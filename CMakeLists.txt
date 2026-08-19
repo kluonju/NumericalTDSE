@@ -45,6 +45,20 @@ if(NUMTDSE_MPI)
 endif()
 
 # ---------------------------------------------------------------------------
+# Eigen: RHEL 8 ships 3.3.4, which IntelLLVM / modern Clang reject
+# (Transpose::derived is missing in Transpositions.h). Force MRCPP to fetch
+# 3.4.0 in that case. GNU 8 still builds against the system copy.
+# ---------------------------------------------------------------------------
+if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM|Clang|Intel")
+    find_package(Eigen3 3.4 CONFIG QUIET)
+    if(NOT TARGET Eigen3::Eigen)
+        set(CMAKE_DISABLE_FIND_PACKAGE_Eigen3 ON CACHE BOOL
+            "Ignore system Eigen 3.3.x for Intel/Clang" FORCE)
+        message(STATUS "System Eigen is missing or < 3.4; MRCPP will fetch 3.4.0")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # MRCPP: prefer a local install, otherwise fetch 1.6.0-alpha from GitHub.
 # TimeEvolutionOperator (free-particle semigroup) lives on this line;
 # v1.5.0 does not ship it.

@@ -52,6 +52,12 @@ enum class EigenMethod {
     Itp      ///< Imaginary-time relaxation ψ(τ) ∝ exp(−H τ) ψ, Gram–Schmidt for excited states
 };
 
+enum class SpinKind {
+    Unspecified, ///< No exchange projection (product Gaussian / mixed symmetry)
+    Singlet,     ///< Spatial even: ψ(r1,r2)=+ψ(r2,r1); spin singlet
+    Triplet      ///< Spatial odd:  ψ(r1,r2)=−ψ(r2,r1); spin triplet
+};
+
 /**
  * All user-tunable numerical and physical parameters.
  *
@@ -87,7 +93,9 @@ struct Parameters {
     double soft_a = 1.0;    ///< Soft-Coulomb regularisation length
     double Z = 1.0;         ///< Nuclear charge for TrapKind::SoftAtom
     double lambda_contact = 0.0; ///< Orbital-mode contact interaction λ ρ(r)
-    bool fermion = false;   ///< Antisymmetrise exact 2e/3e 1D initial data (Slater)
+    bool fermion = false;   ///< Antisymmetrise exact 2e/3e 1D initial data (Slater); 2e → triplet
+    SpinKind spin = SpinKind::Unspecified; ///< Exact 2e: spatial singlet / triplet
+    bool spin_explicit = false;
     bool ee = true;         ///< Exact N-body 1D: include soft-Coulomb V_ee
 
     // --- Initial wave function (displaced Gaussian, optional boost) ---
@@ -151,6 +159,17 @@ inline bool is_stationary(const Parameters &p) {
 
 inline bool is_invert(const Parameters &p) { return p.job == JobKind::Invert; }
 
+/** Exchange sector of an exact two-electron spatial wave function. */
+inline SpinKind two_electron_spin(const Parameters &p) {
+    if (p.n_electrons != 2 || p.representation != Representation::Exact) {
+        return SpinKind::Unspecified;
+    }
+    if (p.spin_explicit) {
+        return p.spin;
+    }
+    return p.fermion ? SpinKind::Triplet : SpinKind::Unspecified;
+}
+
 /** Physical lower bound used to discard spurious MW-kinetic Ritz values. */
 inline double energy_floor(const Parameters &p) {
     if (p.trap == TrapKind::Harmonic) {
@@ -170,6 +189,7 @@ const char *kinetic_name(KineticKind k);
 const char *representation_name(Representation r);
 const char *job_kind_name(JobKind j);
 const char *eigen_method_name(EigenMethod m);
+const char *spin_kind_name(SpinKind s);
 const char *invert_target_name(InvertTarget t);
 const char *invert_guess_name(InvertGuess g);
 void print_parameters(const Parameters &p);

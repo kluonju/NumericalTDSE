@@ -1,6 +1,6 @@
-! Exact 1D two-electron (soft helium) ground state on FunctionTree<2>.
-! Heavier than the 1-body examples; no elementary analytic energy.
-! 精确一维双电子基态（D = 2 的树）。比单电子算例重，无初等解析能。
+! Exact 1D two-electron (soft helium) singlet ground state on FunctionTree<2>.
+! Spatial even, spin singlet. Heavier than the 1-body examples; no elementary analytic energy.
+! 精确一维双电子单重态基态（D = 2 的树）。比单电子算例重，无初等解析能。
 &CONTROL
   calculation = 'ground'
   title       = 'exact 1D two-electron ground state'
@@ -23,9 +23,9 @@
   electrons = 2
   mode      = 'exact'
   trap      = 'atom'
+  spin      = 'singlet'
   Z         = 1.0
   soft_a    = 1.0
-  fermion   = .false.
 /
 
 &INITIAL

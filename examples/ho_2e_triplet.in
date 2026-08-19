@@ -1,0 +1,40 @@
+! Exact 1D two-electron HO, spin triplet (spatial odd).
+! Non-interacting GS: Slater of HO n=0 and n=1, E = 2ω = 2.
+! 精确一维双电子谐振子三重态（空间反对称）。无相互作用基态 E = 2。
+&CONTROL
+  calculation = 'ground'
+  title       = '1D HO 2e triplet ground state'
+  prefix      = 'ho_2e_triplet'
+  ident_check = .false.
+/
+
+&MRA
+  prec  = 1.0d-3
+  order = 5
+  L     = 6.0
+/
+
+&TIME
+  kinetic    = 'bs'
+  krylov_dim = 8
+/
+
+&SYSTEM
+  dim       = 1
+  electrons = 2
+  mode      = 'exact'
+  trap      = 'harmonic'
+  omega     = 1.0
+  spin      = 'triplet'
+  ee        = .false.
+/
+
+&INITIAL
+  alpha = 1.0
+  x0    = 0.0
+/
+
+&EIGEN
+  n_states = 1
+  method   = 'lanczos'
+/

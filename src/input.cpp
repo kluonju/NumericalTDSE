@@ -268,6 +268,22 @@ void set_eigen_method(Parameters &p, const std::string &raw, const std::string &
     }
 }
 
+void set_spin(Parameters &p, const std::string &raw, const std::string &origin) {
+    const std::string s = to_lower_copy(raw);
+    if (s == "singlet" || s == "para" || s == "even" || s == "spatial_even") {
+        p.spin = SpinKind::Singlet;
+        p.spin_explicit = true;
+    } else if (s == "triplet" || s == "ortho" || s == "odd" || s == "spatial_odd") {
+        p.spin = SpinKind::Triplet;
+        p.spin_explicit = true;
+    } else if (s == "none" || s == "unspecified" || s == "off") {
+        p.spin = SpinKind::Unspecified;
+        p.spin_explicit = true;
+    } else {
+        throw std::invalid_argument(origin + ": unknown spin '" + raw + "' (singlet|triplet)");
+    }
+}
+
 void set_calculation(Parameters &p, const std::string &raw, const std::string &origin) {
     const std::string s = to_lower_copy(raw);
     if (s == "tdse") {
@@ -565,6 +581,8 @@ void apply_namelist_assignment(Parameters &p,
             p.lambda_contact = parse_double(value, origin);
         } else if (key == "fermion") {
             p.fermion = parse_bool(value, origin);
+        } else if (key == "spin") {
+            set_spin(p, value, origin);
         } else if (key == "ee" || key == "interact" || key == "interaction" || key == "vee") {
             p.ee = parse_bool(value, origin);
         } else {
@@ -755,6 +773,21 @@ void finalize_parameters(Parameters &p) {
     if (p.n_electrons < 1 || p.n_electrons > 4) {
         throw std::invalid_argument("SYSTEM electrons must be 1..4");
     }
+    if (p.spin_explicit && p.spin != SpinKind::Unspecified) {
+        if (p.n_electrons != 2) {
+            throw std::invalid_argument("SYSTEM spin = singlet|triplet requires electrons = 2");
+        }
+        if (p.representation != Representation::Exact) {
+            throw std::invalid_argument("SYSTEM spin requires mode = 'exact' (spatial exchange of ψ(r1,r2))");
+        }
+        if (p.spin == SpinKind::Singlet && p.fermion) {
+            throw std::invalid_argument("SYSTEM spin = 'singlet' conflicts with fermion = .true.");
+        }
+        if (is_invert(p) && p.spin == SpinKind::Triplet) {
+            throw std::invalid_argument("INVERT assumes a spatial singlet; do not set spin = 'triplet'");
+        }
+        p.fermion = (p.spin == SpinKind::Triplet);
+    }
     if (p.representation == Representation::Exact && !is_invert(p)) {
         const int D = mra_dimension(p);
         if (D > 4) {
@@ -823,7 +856,8 @@ void write_input_template(std::ostream &os) {
   soft_a    = 1.0
   Z         = 1.0
   lambda    = 0.0                 ! orbital-mode contact interaction
-  fermion   = .false.             ! Slater initial data for exact 2e/3e in 1D
+  fermion   = .false.             ! Slater initial data for exact 2e/3e in 1D; 2e → triplet
+  spin      = 'none'              ! exact 2e: 'singlet' | 'triplet' (spatial even/odd)
   ee        = .true.              ! exact N-body soft-Coulomb V_ee
 /
 

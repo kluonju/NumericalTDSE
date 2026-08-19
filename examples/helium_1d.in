@@ -19,6 +19,7 @@
   mode      = 'exact'
   trap      = 'atom'
   fermion   = .true.
+  spin      = 'triplet'           ! spatial odd; omit spin and keep fermion=.true. for the same
   Z         = 1.0
   soft_a    = 1.0
 /

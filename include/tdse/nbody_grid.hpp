@@ -19,9 +19,13 @@
 
 #include "tdse/parameters.hpp"
 
+#include "MRCPP/Printer"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -582,16 +586,32 @@ struct TwoElectronGrid {
         return std::sqrt(num / den);
     }
 
-    double relax(int steps, double tau, double ethresh) {
+    double relax(int steps, double tau, double ethresh, int print_every = 0, const char *tag = "") {
         double E = energy();
         for (int s = 0; s < steps; ++s) {
             imag_step(tau);
-            if ((s + 1) % 5 == 0 || s + 1 == steps) {
+            const bool check = ((s + 1) % 5 == 0 || s + 1 == steps);
+            const bool report = (print_every > 0 && ((s + 1) % print_every == 0 || s + 1 == steps));
+            if (check || report) {
                 const double En = energy();
-                if (std::abs(En - E) < ethresh && s >= 4) {
-                    return En;
+                if (report) {
+                    std::stringstream ss;
+                    if (tag != nullptr && tag[0] != '\0') {
+                        ss << "  " << tag << " ";
+                    }
+                    ss << "step=" << (s + 1) << "/" << steps << "  E=" << std::fixed << std::setprecision(10) << En
+                       << "  ||(H-E)ψ||=" << std::scientific << residual(En);
+                    if (check && s >= 4) {
+                        ss << "  |ΔE|=" << std::scientific << std::abs(En - E);
+                    }
+                    println(0, ss.str());
                 }
-                E = En;
+                if (check) {
+                    if (std::abs(En - E) < ethresh && s >= 4) {
+                        return En;
+                    }
+                    E = En;
+                }
             }
         }
         return energy();

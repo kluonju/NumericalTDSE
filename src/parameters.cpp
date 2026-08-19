@@ -152,6 +152,18 @@ const char *eigen_method_name(EigenMethod m) {
     return "?";
 }
 
+const char *spin_kind_name(SpinKind s) {
+    switch (s) {
+        case SpinKind::Unspecified:
+            return "unspecified";
+        case SpinKind::Singlet:
+            return "singlet";
+        case SpinKind::Triplet:
+            return "triplet";
+    }
+    return "?";
+}
+
 void print_parameters(const Parameters &p) {
     mrcpp::print::header(0, "NumericalTDSE parameters");
     if (!p.title.empty()) {
@@ -167,6 +179,7 @@ void print_parameters(const Parameters &p) {
     mrcpp::print::value(0, "L", p.L);
     mrcpp::print::value(0, "dt", p.dt);
     mrcpp::print::value(0, "T", p.T);
+    mrcpp::print::value(0, "print_every", static_cast<double>(p.print_every));
     mrcpp::print::value(0, "spatial_dim", static_cast<double>(p.spatial_dim));
     mrcpp::print::value(0, "n_electrons", static_cast<double>(p.n_electrons));
     mrcpp::print::value(0, "MRA dimension", static_cast<double>(mra_dimension(p)));
@@ -178,6 +191,12 @@ void print_parameters(const Parameters &p) {
     if (p.n_electrons > 1) {
         println(0, "  fermion         : " << (p.fermion ? "true" : "false"));
         if (p.representation == Representation::Exact) {
+            const SpinKind spin = two_electron_spin(p);
+            if (spin != SpinKind::Unspecified) {
+                println(0, "  spin            : " << spin_kind_name(spin)
+                                                  << "  (spatial " << (spin == SpinKind::Singlet ? "even" : "odd")
+                                                  << ")");
+            }
             println(0, "  ee              : " << (p.ee ? "true" : "false"));
         }
     }

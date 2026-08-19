@@ -39,7 +39,9 @@ Plotting needs `pip install matplotlib`. `compare_analytic.py` uses only the Pyt
 | `ground_itp.in` | HO ground by ITP | 虚时基态 | \(E(\tau)\to 0.5\) |
 | `ground_atom.in` | 1D soft-Coulomb ground | 软库仑基态 | residual |
 | `orbitals_ground.in` | 2 HO orbitals, \(\lambda=0\) | 两轨道（无相互作用） | \(0.5, 1.5\) |
-| `helium_ground.in` | exact 1D 2e ground | 精确双电子基态 | residual |
+| `helium_ground.in` | exact 1D 2e singlet GS | 精确双电子单重态基态 | residual |
+| `ho_2e_singlet.in` | 1D HO 2e singlet GS | 一维双电子单重态 | \(E=\omega=1\) |
+| `ho_2e_triplet.in` | 1D HO 2e triplet GS | 一维双电子三重态 | \(E=2\omega=2\) |
 | `invert_smoke.in` | 2e-1D inversion ctest | 一维双电子反演短跑 | L1 of \(n\) |
 | `invert_2e1d.in` | TGK08 1D helium inversion | 一维氦密度反演 | recover \(v_\mathrm{ext}\) |
 | `invert_2e2d.in` | 2e in 2D as 1e in 4D | 二维双电子（4 维组态） | recover \(v_\mathrm{ext}(x,y)\) |

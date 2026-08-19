@@ -279,7 +279,7 @@ int invert_two_electrons(const Parameters &p) {
         g.v_ext = v_true;
         g.build_config_potential();
         const int warm = std::max(p.invert_inner * 2, 80);
-        const double E0 = g.relax(warm, p.invert_tau, p.eigen_thr);
+        const double E0 = g.relax(warm, p.invert_tau, p.eigen_thr, p.print_every, "target GS relax");
         g.compute_density();
         n_target = g.dens;
         println(0,
@@ -290,7 +290,7 @@ int invert_two_electrons(const Parameters &p) {
     apply_guess(g, p, v_true, n_target);
     g.build_config_potential();
     const int warm_guess = std::max(p.invert_inner, 40);
-    double E = g.relax(warm_guess, p.invert_tau, p.eigen_thr);
+    double E = g.relax(warm_guess, p.invert_tau, p.eigen_thr, p.print_every, "guess relax");
     g.compute_density();
     const double l1_init = g.l1_density(n_target);
     println(0, "  initial L1      : ∫|n−n*| = " << std::setprecision(8) << l1_init);
@@ -339,6 +339,9 @@ int invert_two_electrons(const Parameters &p) {
     }
 
     mrcpp::print::header(0, "Peirs / TGK08 iteration");
+    println(0,
+            "  maxiter=" << p.invert_maxiter << "  inner=" << p.invert_inner << "  print_every="
+                       << p.print_every);
     for (int it = 1; it <= p.invert_maxiter; ++it) {
         v_save = g.v_ext;
         psi_save = g.psi;
@@ -355,7 +358,8 @@ int invert_two_electrons(const Parameters &p) {
             g.v_ext[u] += dv;
         }
         g.build_config_potential();
-        E = g.relax(p.invert_inner, p.invert_tau, p.eigen_thr);
+        println(0, "  iter " << it << "  inner relax (" << p.invert_inner << " imag-time steps):");
+        E = g.relax(p.invert_inner, p.invert_tau, p.eigen_thr, p.print_every, "inner");
         g.compute_density();
         const double l1_new = g.l1_density(n_target);
         if (l1_new > l1 * 1.05 && gamma > 1.0e-5) {

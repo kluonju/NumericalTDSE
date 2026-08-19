@@ -28,6 +28,9 @@ struct Observables {
     double energy_analytic = std::numeric_limits<double>::quiet_NaN();
     double residual = std::numeric_limits<double>::quiet_NaN(); ///< ||(H−E)ψ|| / ||ψ||
     int state = -1; ///< eigenstate index; −1 for real-time rows
+    int step = -1;      ///< 1-based iteration index; −1 omits step= from stdout
+    int step_total = -1; ///< total iterations when known
+    std::string label;  ///< e.g. "TDSE", "ITP n=0", "relax"
     int n_nodes_re = 0;
     int n_nodes_im = 0;
 };
@@ -112,8 +115,18 @@ inline void write_spectrum_row(std::ostream &os, const Observables &o) {
 
 inline void print_row(const Observables &o) {
     std::stringstream ss;
+    if (!o.label.empty()) {
+        ss << o.label << "  ";
+    }
+    if (o.step >= 0) {
+        ss << "step=" << o.step;
+        if (o.step_total > 0) {
+            ss << "/" << o.step_total;
+        }
+        ss << "  ";
+    }
     ss << std::fixed << std::setprecision(6)
-       << " t=" << o.t
+       << "t=" << o.t
        << "  ||ψ||=" << std::setprecision(10) << o.nrm
        << "  μ=" << o.dipole
        << "  E=" << o.energy
