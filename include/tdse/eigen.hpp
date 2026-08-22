@@ -486,8 +486,8 @@ std::vector<EigenPair<D>> lanczos_spectrum(double prec,
             throw std::runtime_error("Lanczos returned no state");
         }
         if constexpr (D <= 3) {
-            // Heat polish smears the Coulomb cusp; hydrogenic 1s is already the trial.
-            if (!is_hydrogenic_1e(p)) {
+            // Heat kernel smears the Coulomb cusp (and 1/r is unbounded below).
+            if (p.trap != TrapKind::SoftAtom) {
                 heat_polish(prec, *one[0].psi, ops, V, *heat, tau, polish, defs);
             }
         }
